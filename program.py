@@ -169,7 +169,7 @@ def write_callback():
     global csv_file
     should_write = True
     csv_file = open('csvfile.csv', 'w')
-    csv_writer = csv.writer(f)
+    csv_writer = csv.writer(csv_file)
     header = ['resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
     # write the header
     csv_writer.writerow(header)
