@@ -38,10 +38,14 @@ motor_left = DC_Motor(clockwise_pin_1, counterclockwise_pin_1, pwm_pin_1)
 motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 
 # encoder pin setup
-encoder_a = 19
-encoder_b = 21
-GPIO.setup(encoder_a, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(encoder_b, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+encoder_a_ml = 19
+encoder_b_ml = 21
+encoder_a_mr = 33
+encoder_b_mr = 35
+GPIO.setup(encoder_a_ml, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(encoder_b_ml, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(encoder_a_mr, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(encoder_b_mr, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 # encoder values
 # hardware pwm: 12, 32, 33, 35
@@ -51,14 +55,15 @@ RPM = 800
 RADIUS_WHEEL = 5.0
 
 # init state variables
-last_a_state = GPIO.input(encoder_a)
-current_dir = 0
+last_a_state = GPIO.input(encoder_a_ml)
+current_dir = ""
 pulse_counter = 0
 total_pulse_counter = 0
-direc = 0
 period = 1
-pstart = 0
+period_start = 0
 wave_state = 0
+last_ts = time.time()
+start_ts = last_ts
 
 # Global vars. initial values
 runtime = 0 # time until it should stop
@@ -73,6 +78,7 @@ should_show = False
 should_stop = False
 record_writer = None
 ip_addr = "0.0.0.0"
+writer = None
 no_movement_count = 0
 
 # finalization_countdown = None
@@ -477,6 +483,11 @@ def process_frame(image_input, last_res_v):
 
         if should_record:
             record_writer.write(output)
+
+    # I don't know if read_encoder should be called here
+    distance = read_encoders()
+    data = [distance, linear, angular, error]
+    writer.writerow(data)
     
     # Uncomment to show the binary picture
     #cv2.imshow("mask", mask)
@@ -489,17 +500,20 @@ def read_encoders():
     global current_dir
     global pulse_counter
     global total_pulse_counter
-    global direc
     global period
-    global pstart
+    global period_start
     global wave_state
+    global start_ts
+    global last_ts
 
+    current_a_state = GPIO.input(encoder_a_ml)
+
+    # calculate frequency
     if wave_state == 0:
         if current_a_state == 1 and last_a_state == 0:
-            period = (time.time_ns() / 1000) - pstart
-            pstart = time.time_ns() / 1000
+            period = (time.time_ns() / 1000) - period_start
+            period_start = time.time_ns() / 1000
             wave_state = 1
-
     elif wave_state == 1:
         if current_a_state == 0 and last_a_state == 1:
             wave_state = 0
@@ -508,7 +522,7 @@ def read_encoders():
     if current_a_state != last_a_state and current_a_state == 1:
         total_pulse_counter += 1
 
-        b_state = GPIO.input(encoder_b)
+        b_state = GPIO.input(encoder_b_ml)
         # check direction
         if b_state != current_a_state:
             current_dir = "anti-horário"
@@ -526,40 +540,46 @@ def read_encoders():
     calc_rpm = frequency * 60 // STEPS_NUMBER
     rotations = total_pulse_counter // STEPS_NUMBER 
 
+    return ((2 * 3.14 * RADIUS_WHEEL) / STEPS_NUMBER) * pulse_counter
+
 
 def timeout(signum, frame):
     raise TimeoutError
 
 def main():
-    print(datetime.now())
     global lost
     global error
     global no_movement_count
+    global writer
+    
     lost = False
 
-    last_ts = time.time()
-    start_ts = last_ts
+    print(datetime.now())
+    
+
     f = open('csvfile.csv', 'w')
     writer = csv.writer(f)
     header = ['distancia', 'linear', 'angular', 'erro']
     # write the header
     writer.writerow(header)
 
-
-    signal.signal(signal.SIGALRM, timeout)
     # Use system signals to stop input()
+    signal.signal(signal.SIGALRM, timeout)
 
+    # set camera captura settings
     video = cv2.VideoCapture(0)
+    video.set(cv2.CAP_PROP_FRAME_WIDTH, 240)
+    video.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
+    video.set(cv2.CAP_PROP_FPS, 90)
 
-    # print(video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920))
-    # print(video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080))
 
     retval, image = video.read()
-    print(image.shape)
     height, width, _ = image.shape
-    print(">>", end="")
     error = width//(RESIZE_SIZE*2)
+    #print(image.shape)
+    print(">>", end="")
 
+    
     if args.start:  # should start following line
         start_follower_callback(None, None)
 
@@ -572,6 +592,11 @@ def main():
     if args.stop != None: # should show image
         stop_callback()
 
+    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height), (7 * width // 8, height)]
+    original_perspective = np.float32(points)
+    new = np.float32([(0, 0), (width, 0), (0, height), (width, height)])
+    matrix = cv2.getPerspectiveTransform(original_perspective, new)
+
     last_res_v = {
         "left" : 0,
         "right" : 0
@@ -579,17 +604,11 @@ def main():
 
     while retval:
         try:
+            image = cv2.resize(perspective, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
+            perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
+            last_res_v = process_frame(perspective, last_res_v)
 
-            image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            last_res_v = process_frame(image, last_res_v)
-
-            # I don't know if read_encoder should be called here
-            read_encoder()
-            data = [(((2 * 3.14 * RADIUS_WHEEL) / STEPS_NUMBER) * pulse_counter), linear, angular, error]
-            writer.writerow(data)
-
-            retval, image = video.read()
-
+            retval, perspective = video.read()
 
         except TimeoutError:
             pass
