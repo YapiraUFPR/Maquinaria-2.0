@@ -11,6 +11,7 @@ import cv2
 import signal
 import RPi.GPIO as GPIO
 from DC_Motor_pi import DC_Motor
+from encoder import Encoder
 import requests
 from datetime import datetime, timedelta
 import argparse
@@ -21,6 +22,7 @@ import csv
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--start", action="store_true", help="Follow line")
 parser.add_argument("-r", "--record", action="store_true", help="Record masked image")
+parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
 parser.add_argument("-o", "--output", metavar="address", action="store", help="Show output image to ip address")
 parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
 args = parser.parse_args()
@@ -37,33 +39,18 @@ pwm_pin_2 = 18
 motor_left = DC_Motor(clockwise_pin_1, counterclockwise_pin_1, pwm_pin_1)
 motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 
+# encoder values
+STEPS_NUMBER = 7
+RPM = 800
+RADIUS_WHEEL = 5.0
+
 # encoder pin setup
 encoder_a_ml = 19
 encoder_b_ml = 21
 encoder_a_mr = 33
 encoder_b_mr = 35
-GPIO.setup(encoder_a_ml, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(encoder_b_ml, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(encoder_a_mr, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(encoder_b_mr, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-# encoder values
-# hardware pwm: 12, 32, 33, 35
-STEPS_NUMBER = 7
-RPM = 800
-# 
-RADIUS_WHEEL = 5.0
-
-# init state variables
-last_a_state = GPIO.input(encoder_a_ml)
-current_dir = ""
-pulse_counter = 0
-total_pulse_counter = 0
-period = 1
-period_start = 0
-wave_state = 0
-last_ts = time.time()
-start_ts = last_ts
+encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
+encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
 
 # Global vars. initial values
 runtime = 0 # time until it should stop
@@ -71,15 +58,19 @@ init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
 error = 0
+no_movement_count = 0
 just_seen_line = False
+
 should_move = False
 should_record = False
 should_show = False
 should_stop = False
+should_write = False 
 record_writer = None
+
 ip_addr = "0.0.0.0"
-writer = None
-no_movement_count = 0
+csv_writer = None
+csv_file = None
 
 # finalization_countdown = None
 # right_mark_count = 0
@@ -156,7 +147,6 @@ def crop_size(height, width):
 
     return (0, 3*height//5, 0, width)
 
-
 def show_callback():
     global should_show
     global ip_addr
@@ -172,6 +162,23 @@ def record_callback(width, height):
     record_writer = cv2.VideoWriter(f"out-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 20, (width, height))
     print("RECORDING")
     print(">>", end="")
+
+def write_callback():
+    global should_write
+    global csv_writer
+    global csv_file
+    should_write = True
+    csv_file = open('csvfile.csv', 'w')
+    csv_writer = csv.writer(f)
+    header = ['resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
+    # write the header
+    csv_writer.writerow(header)
+
+def end_write():
+    global should_write
+    global csv_file
+    if should_write:
+        csv_file.close()
 
 def end_record():
     global should_record
@@ -443,8 +450,10 @@ def process_frame(image_input, last_res_v):
     #Show the output image to the user
     global should_record
     global should_show
+    global should_write
     global ip_addr
     global record_writer
+    global csv_writer
 
     now = f"{datetime.now().strftime('%M:%S.%f')[:-4]}"
     debug_str = f"A: {int(angular)}|L: {linear}|E: {error}"
@@ -484,63 +493,19 @@ def process_frame(image_input, last_res_v):
         if should_record:
             record_writer.write(output)
 
-    # I don't know if read_encoder should be called here
-    distance = read_encoders()
-    data = [distance, linear, angular, error]
-    writer.writerow(data)
-    
+    global encoder_ml
+    global encoder_mr
+    encoder_ml.read_encoders()
+    encoder_mr.read_encoders()
+    if should_write:
+        result_distance = encoder_mr.distance, encoder_ml.distance
+        data = [result_distance, encoder_mr.distance, encoder_ml.distance, linear, angular, error]
+        csv_writer.writerow(data)
+
     # Uncomment to show the binary picture
     #cv2.imshow("mask", mask)
     
     return res_v # return speed of the current iteration
-    
-# this is a highly experimental function
-# this should be able to detect encoder readings according to encoder_test.py
-def read_encoders():
-    global current_dir
-    global pulse_counter
-    global total_pulse_counter
-    global period
-    global period_start
-    global wave_state
-    global start_ts
-    global last_ts
-
-    current_a_state = GPIO.input(encoder_a_ml)
-
-    # calculate frequency
-    if wave_state == 0:
-        if current_a_state == 1 and last_a_state == 0:
-            period = (time.time_ns() / 1000) - period_start
-            period_start = time.time_ns() / 1000
-            wave_state = 1
-    elif wave_state == 1:
-        if current_a_state == 0 and last_a_state == 1:
-            wave_state = 0
-
-    # check if encoder detected a turn
-    if current_a_state != last_a_state and current_a_state == 1:
-        total_pulse_counter += 1
-
-        b_state = GPIO.input(encoder_b_ml)
-        # check direction
-        if b_state != current_a_state:
-            current_dir = "anti-horário"
-            pulse_counter += 1
-        else:
-            current_dir = "horário"
-            pulse_counter -= 1
-
-    last_a_state = current_a_state
-
-    curr_ts = time.time()
-    # some rotory encoder calculations
-    frequency = total_pulse_counter / (curr_ts - start_ts)
-    # calc_line_num = frequency * 60 // RPM
-    calc_rpm = frequency * 60 // STEPS_NUMBER
-    rotations = total_pulse_counter // STEPS_NUMBER 
-
-    return ((2 * 3.14 * RADIUS_WHEEL) / STEPS_NUMBER) * pulse_counter
 
 
 def timeout(signum, frame):
@@ -550,18 +515,12 @@ def main():
     global lost
     global error
     global no_movement_count
-    global writer
+    global csv_writer
     
     lost = False
 
     print(datetime.now())
-    
 
-    f = open('csvfile.csv', 'w')
-    writer = csv.writer(f)
-    header = ['distancia', 'linear', 'angular', 'erro']
-    # write the header
-    writer.writerow(header)
 
     # Use system signals to stop input()
     signal.signal(signal.SIGALRM, timeout)
@@ -585,6 +544,9 @@ def main():
 
     if args.record: # should record image
         record_callback(width//RESIZE_SIZE, height//RESIZE_SIZE)
+
+    if args.write:
+        write_callback()
 
     if args.output != None: # should show image
         show_callback()
@@ -612,18 +574,13 @@ def main():
 
         except TimeoutError:
             pass
-
-    GPIO.cleanup()
-    f.close()
-    end_record()
+    
     print("Exiting...")
-
 
 try:
     main()
 
 except KeyboardInterrupt:
-    end_record()
     now = datetime.now()
     print(now)
     print(f"TOTAL TIME {now - init_time_iso}")
@@ -633,8 +590,11 @@ except Exception as e:
     print(e)
 
 finally:
+    end_write()
+    end_record()
     del motor_left
     del motor_right
+    del encoder_ml
+    del encoder_mr
     GPIO.cleanup()
     #video.close()
-
