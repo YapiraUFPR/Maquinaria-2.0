@@ -46,7 +46,7 @@ class Encoder:
                 self.wave_state = 0
 
         # check if encoder detected a turn
-        if current_a_state != last_a_state and current_a_state == 1:
+        if current_a_state != self.last_a_state and current_a_state == 1:
             self.total_pulse_counter += 1
 
             b_state = GPIO.input(self.encoder_b)

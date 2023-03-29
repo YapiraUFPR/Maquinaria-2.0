@@ -4,7 +4,12 @@ import numpy as np
 
 # image = cv.imread("/home/gnhn/maquiteste/photo2.jpeg")
 
-capture = cv.VideoCapture("/home/gnhn/maquiteste/video1.mp4")
+capture = cv.VideoCapture(0)
+capture.set(cv.CAP_PROP_FPS, 90)
+capture.set(cv.CAP_PROP_FRAME_WIDTH, 320)
+capture.set(cv.CAP_PROP_FRAME_HEIGHT, 400)
+
+
 
 retval, image = capture.read()
 
@@ -23,22 +28,23 @@ while retval:
 
 
 
-    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height), (7 * width // 8, height)]
+    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height-10), (7 * width // 8, height-10)]
     original_perspective = np.float32(points)
     new = np.float32([(0, 0), (w, 0), (0, h), (width, height)])
 
-    #plot = image
-    #for point in points:
-    #    print(point)
-    #    plot = cv.circle(plot, point, 3, (255, 155, 155), cv.FILLED)
+    plot = image
+    for point in points:
+        #print(point)
+        plot = cv.circle(plot, point, 3, (255, 155, 155), cv.FILLED)
 
 
     matrix = cv.getPerspectiveTransform(original_perspective, new)
     output = cv.warpPerspective(image, matrix, dsize=(w, h))
 
 
-    cv.imshow("BRUH1", plot)
-    cv.imshow("BRUH2", output)
+    cv.imshow("BRUH1", output)
+    cv.waitKey(5)
+    #cv.imshow("BRUH2", output)
 
     retval, image = capture.read()
 

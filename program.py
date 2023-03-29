@@ -65,7 +65,7 @@ should_move = False
 should_record = False
 should_show = False
 should_stop = False
-should_write = False 
+should_write = False
 record_writer = None
 
 ip_addr = "0.0.0.0"
@@ -116,8 +116,8 @@ NO_MOVEMENT_FRAMES = 3
 RESIZE_SIZE = 4
 
 
-# CTR_CENTER_SIZE_FACTOR = 10 
-# CTR_CENTER_SIZE_FACTOR = 1 
+# CTR_CENTER_SIZE_FACTOR = 10
+# CTR_CENTER_SIZE_FACTOR = 1
 # Send messages every $TIMER_PERIOD seconds
 # TIMER_PERIOD = 0.06
 
@@ -159,7 +159,7 @@ def record_callback(width, height):
     global should_record
     global record_writer
     should_record = True
-    record_writer = cv2.VideoWriter(f"out-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 20, (width, height))
+    record_writer = cv2.VideoWriter(f"out-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
     print("RECORDING")
     print(">>", end="")
 
@@ -168,9 +168,9 @@ def write_callback():
     global csv_writer
     global csv_file
     should_write = True
-    csv_file = open('csvfile.csv', 'w')
+    csv_file = open(f"values-{datetime.now().minute}.csv", 'w')
     csv_writer = csv.writer(csv_file)
-    header = ['resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
+    header = ['timestamp','resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
     # write the header
     csv_writer.writerow(header)
 
@@ -179,12 +179,14 @@ def end_write():
     global csv_file
     if should_write:
         csv_file.close()
+        print("Finished writing")
 
 def end_record():
     global should_record
     global record_writer
     if should_record:
         record_writer.release()
+        print("Finished recording")
 
 def stop_callback():
     global should_stop
@@ -322,10 +324,10 @@ def process_frame(image_input, last_res_v):
     global no_movement_count
     global after_loss_count
 
-    res_v = {   
+    res_v = {
         "left" : 0, # left motor resulting speed
         "right" : 0 # right motor resulting speed
-    } 
+    }
 
     height, width, _ = image_input.shape
     image = image_input
@@ -378,7 +380,7 @@ def process_frame(image_input, last_res_v):
         if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
             linear = LINEAR_SPEED_ON_LOSS
             after_loss_count += 1
-        
+
         just_seen_line = True
 
     else:
@@ -391,7 +393,7 @@ def process_frame(image_input, last_res_v):
         if just_seen_line:
             just_seen_line = False
             error = error * LOSS_FACTOR
-        
+
         linear = LINEAR_SPEED_ON_LOSS
 
 
@@ -409,7 +411,7 @@ def process_frame(image_input, last_res_v):
     # resulting speed
     res_v["left"] = int(linear - angular)
     res_v["right"] = int(linear + angular)
-    
+
     left_should_rampup = False
     right_should_rampup = False
 
@@ -424,10 +426,10 @@ def process_frame(image_input, last_res_v):
         no_movement_count = 0
 
 
-    if (last_res_v["left"] <= MIN_SPEED) and (res_v["left"] > last_res_v["left"]): 
+    if (last_res_v["left"] <= MIN_SPEED) and (res_v["left"] > last_res_v["left"]):
         left_should_rampup = True
 
-    if (last_res_v["right"] <= MIN_SPEED) and (res_v["right"] > last_res_v["right"]): 
+    if (last_res_v["right"] <= MIN_SPEED) and (res_v["right"] > last_res_v["right"]):
         right_should_rampup = True
 
     if should_move:
@@ -441,11 +443,10 @@ def process_frame(image_input, last_res_v):
 
         motor_left.run(res_v["left"])
         motor_right.run(res_v["right"])
-    
+
     else:
         motor_left.stop()
         motor_right.stop()
-
 
     #Show the output image to the user
     global should_record
@@ -468,7 +469,7 @@ def process_frame(image_input, last_res_v):
         text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 2, 2)
         text_w, text_h = text_size
 
-        cv2.rectangle(output, (0, 90), (text_w, 110 + text_h), (255,255,255), -1)
+        #cv2.rectangle(output, (0, 90), (text_w, 110 + text_h), (255,255,255), -1) <- mysterious white line
         # Plot the boundaries where the image was cropped
         cv2.rectangle(output, (crop_w_start, crop_h_start), (crop_w_stop, crop_h_stop), (0,0,255), 2)
         # center of the image
@@ -483,11 +484,11 @@ def process_frame(image_input, last_res_v):
             cv2.rectangle(output, (x - width, crop_h_start), (x + width, crop_h_stop), (0,0,255), 2)
 
         if should_show:
-            # cv2.imshow("output", output)
             # Print the image for 5milis, then resume execution
+            # cv2.imshow("output", output)
             # cv2.waitKey(5)
-            _, imdata = cv2.imencode('.jpg', output)    
-            # _, imdata = cv2.imencode('.jpg', mask)    
+            _, imdata = cv2.imencode('.jpg', output)
+            # _, imdata = cv2.imencode('.jpg', mask)
             requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
         if should_record:
@@ -498,13 +499,13 @@ def process_frame(image_input, last_res_v):
     encoder_ml.read_encoders()
     encoder_mr.read_encoders()
     if should_write:
-        result_distance = encoder_mr.distance, encoder_ml.distance
-        data = [result_distance, encoder_mr.distance, encoder_ml.distance, linear, angular, error]
+        result_distance = (encoder_mr.distance + encoder_ml.distance) / 2
+        data = [datetime.now().second,result_distance, encoder_mr.distance, encoder_ml.distance, linear, angular, error]
         csv_writer.writerow(data)
 
     # Uncomment to show the binary picture
     #cv2.imshow("mask", mask)
-    
+
     return res_v # return speed of the current iteration
 
 
@@ -516,7 +517,7 @@ def main():
     global error
     global no_movement_count
     global csv_writer
-    
+
     lost = False
 
     print(datetime.now())
@@ -527,23 +528,24 @@ def main():
 
     # set camera captura settings
     video = cv2.VideoCapture(0)
-    video.set(cv2.CAP_PROP_FRAME_WIDTH, 240)
-    video.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
     video.set(cv2.CAP_PROP_FPS, 90)
+    video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
 
     retval, image = video.read()
+
     height, width, _ = image.shape
     error = width//(RESIZE_SIZE*2)
-    #print(image.shape)
+    print(image.shape)
     print(">>", end="")
 
-    
+
     if args.start:  # should start following line
         start_follower_callback(None, None)
 
     if args.record: # should record image
-        record_callback(width//RESIZE_SIZE, height//RESIZE_SIZE)
+        record_callback(width, height)
 
     if args.write:
         write_callback()
@@ -554,7 +556,7 @@ def main():
     if args.stop != None: # should show image
         stop_callback()
 
-    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height), (7 * width // 8, height)]
+    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height - 5), (7 * width // 8, height - 5)]
     original_perspective = np.float32(points)
     new = np.float32([(0, 0), (width, 0), (0, height), (width, height)])
     matrix = cv2.getPerspectiveTransform(original_perspective, new)
@@ -564,17 +566,28 @@ def main():
         "right" : 0
     }
 
+    fps_count = 0
+    ts = time.time()
+
     while retval:
         try:
-            image = cv2.resize(perspective, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
-            last_res_v = process_frame(perspective, last_res_v)
 
-            retval, perspective = video.read()
+            #image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
+            perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
+
+
+            last_res_v = process_frame(perspective, last_res_v)
+            retval, image = video.read()
+
+            fps_count += 1
+            if time.time() - ts >= 1:
+                print(fps_count)
+                fps_count = 0
+                ts = time.time()
 
         except TimeoutError:
             pass
-    
+
     print("Exiting...")
 
 try:
