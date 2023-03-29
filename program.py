@@ -17,6 +17,8 @@ from datetime import datetime, timedelta
 import argparse
 import time
 import csv
+from os.path import exists
+from os import makedirs
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -159,7 +161,7 @@ def record_callback(width, height):
     global should_record
     global record_writer
     should_record = True
-    record_writer = cv2.VideoWriter(f"out-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
+    record_writer = cv2.VideoWriter(f"./outputs/pov-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
     print("RECORDING")
     print(">>", end="")
 
@@ -168,7 +170,7 @@ def write_callback():
     global csv_writer
     global csv_file
     should_write = True
-    csv_file = open(f"values-{datetime.now().minute}.csv", 'w')
+    csv_file = open(f"./outputs/values-{datetime.now().minute}.csv", 'w')
     csv_writer = csv.writer(csv_file)
     header = ['timestamp','resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
     # write the header
@@ -535,10 +537,15 @@ def main():
 
     retval, image = video.read()
 
+    # set resize settings
     height, width, _ = image.shape
     error = width//(RESIZE_SIZE*2)
     print(image.shape)
     print(">>", end="")
+
+    # check output files dir
+    if not exists("output"):
+        makedirs("output")
 
 
     if args.start:  # should start following line
@@ -547,7 +554,7 @@ def main():
     if args.record: # should record image
         record_callback(width, height)
 
-    if args.write:
+    if args.write:  # should write values to csv
         write_callback()
 
     if args.output != None: # should show image
