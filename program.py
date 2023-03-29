@@ -68,7 +68,8 @@ should_record = False
 should_show = False
 should_stop = False
 should_write = False
-record_writer = None
+record_frames = []
+shape = ()
 
 ip_addr = "0.0.0.0"
 csv_writer = None
@@ -157,11 +158,11 @@ def show_callback():
     print("SHOWING")
     print(">>", end="")
 
-def record_callback(width, height):
+def record_callback():
     global should_record
-    global record_writer
+    global record_frames
     should_record = True
-    record_writer = cv2.VideoWriter(f"./outputs/pov-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
+    record_frames = []
     print("RECORDING")
     print(">>", end="")
 
@@ -185,9 +186,13 @@ def end_write():
 
 def end_record():
     global should_record
-    global record_writer
+    global record_frames
+    global shape
     if should_record:
-        record_writer.release()
+        writer = cv2.VideoWriter(f"./outputs/pov-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, shape)
+        for frame in record_frames:
+            writer.write(frame)
+        writer.release()
         print("Finished recording")
 
 def stop_callback():
@@ -455,7 +460,7 @@ def process_frame(image_input, last_res_v):
     global should_show
     global should_write
     global ip_addr
-    global record_writer
+    global record_frames
     global csv_writer
 
     now = f"{datetime.now().strftime('%M:%S.%f')[:-4]}"
@@ -494,7 +499,7 @@ def process_frame(image_input, last_res_v):
             requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
         if should_record:
-            record_writer.write(output)
+            record_frames.append(output)
 
     global encoder_ml
     global encoder_mr
@@ -519,6 +524,7 @@ def main():
     global error
     global no_movement_count
     global csv_writer
+    global shape
 
     lost = False
 
@@ -539,20 +545,21 @@ def main():
 
     # set resize settings
     height, width, _ = image.shape
+    shape = (width, height)
     error = width//(RESIZE_SIZE*2)
     print(image.shape)
     print(">>", end="")
 
     # check output files dir
-    if not exists("output"):
-        makedirs("output")
+    if not exists("outputs"):
+        makedirs("outputs")
 
 
     if args.start:  # should start following line
         start_follower_callback(None, None)
 
     if args.record: # should record image
-        record_callback(width, height)
+        record_callback()
 
     if args.write:  # should write values to csv
         write_callback()
