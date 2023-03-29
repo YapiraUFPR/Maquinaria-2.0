@@ -10,8 +10,8 @@ import numpy as np
 import cv2
 import signal
 import RPi.GPIO as GPIO
-from DC_Motor_pi import DC_Motor
-from encoder import Encoder
+from libs.DC_Motor_pi import DC_Motor
+from libs.encoder import Encoder
 import requests
 from datetime import datetime, timedelta
 import argparse
