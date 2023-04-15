@@ -93,7 +93,7 @@ MAX_CONTOUR_VERTICES = 50
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 45.0
 LINEAR_SPEED_ON_LOSS = 25.0
-LINEAR_SPEED_ON_CURVE = 30.5
+LINEAR_SPEED_ON_CURVE = 23.5
 
 # error when the curve starts
 CURVE_ERROR_THRH =  22
@@ -109,7 +109,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 17/100
+KP = 22/100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -136,12 +136,12 @@ RESIZE_SIZE = 4
 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([170,  170,  170])
+lower_bgr_values = np.array([130,  130,  40])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
-lower_hsv_values = np.array([84, 2, 118])
-upper_hsv_values = np.array([109, 159, 255])
+lower_hsv_values = np.array([79, 0, 113])
+upper_hsv_values = np.array([120, 170, 255])
 
 
 
@@ -171,7 +171,8 @@ def crop_size(height, width):
     """
     ## Update these parameters as well.
 
-    return (3*height//5, height, 0, width)
+    #return (3*height//5, height, 0, width)
+    return (2*height//5, 3*height//5, 0, width)
 
 def show_callback():
     global should_show
@@ -270,7 +271,7 @@ def get_contour_data(mask, out, previous_pos):
 
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=1)
+    #mask = cv2.erode(mask, kernel, iterations=1)
 
     # get a list of contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -370,13 +371,13 @@ def process_frame(image_input, last_res_v):
     # get the bottom part of the image (matrix slicing)
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
-    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    #hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
 
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
-    mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
+    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    #mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
 
 
 
@@ -618,9 +619,9 @@ def main():
         try:
 
             #image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
+            #perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
 
-
+            perspective = image 
             last_res_v = process_frame(perspective, last_res_v)
             retval, image = video.read()
 
@@ -648,11 +649,11 @@ except Exception as e:
     print(e)
 
 finally:
-    end_write()
-    end_record()
-    del motor_left
     del motor_right
     del encoder_ml
     del encoder_mr
     GPIO.cleanup()
+    del motor_left
     #video.close()
+    end_write()
+    end_record()
