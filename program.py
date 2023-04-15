@@ -31,8 +31,8 @@ parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot i
 args = parser.parse_args()
 
 # pins setup
-clockwise_pin_1 = 11
-counterclockwise_pin_1 = 13
+clockwise_pin_1 = 13
+counterclockwise_pin_1 = 11
 pwm_pin_1 = 12
 
 clockwise_pin_2 = 16
@@ -87,13 +87,13 @@ MIN_AREA = 400
 # Minimum size for a contour to be considered part of the track
 MIN_AREA_TRACK = 900
 
-MAX_CONTOUR_VERTICES = 30
+MAX_CONTOUR_VERTICES = 50
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 15.0
-LINEAR_SPEED_ON_LOSS = 5.0
-LINEAR_SPEED_ON_CURVE = 7.5
+LINEAR_SPEED = 45.0
+LINEAR_SPEED_ON_LOSS = 25.0
+LINEAR_SPEED_ON_CURVE = 30.5
 
 # error when the curve starts
 CURVE_ERROR_THRH =  22
@@ -109,7 +109,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 27.5/100
+KP = 17/100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -288,7 +288,7 @@ def get_contour_data(mask, out, previous_pos):
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
 
-            contour_vertices = len(cv2.approxPolyDP(contour, 1.0, True))
+            contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
             # print("vertices: ", contour_vertices)
 
             if (M['m00'] < MIN_AREA):
@@ -469,12 +469,12 @@ def process_frame(image_input, last_res_v):
 
     if should_move:
 
-        if left_should_rampup:
-            motor_left.run(90)
-        if right_should_rampup:
-            motor_right.run(90)
-        if left_should_rampup or right_should_rampup:
-            time.sleep(0.008)
+        # if left_should_rampup:
+        #     motor_left.run(90)
+        # if right_should_rampup:
+        #     motor_right.run(90)
+        # if left_should_rampup or right_should_rampup:
+        #     time.sleep(0.008)
 
         motor_left.run(res_v["left"])
         motor_right.run(res_v["right"])
@@ -588,7 +588,7 @@ def main():
 
     if args.record: # should record image
         record_callback()
-        
+
     thread_stream = Thread(target=task_stream_video)
     if args.output != None:
         show_callback()
