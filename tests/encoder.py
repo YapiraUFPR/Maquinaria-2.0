@@ -1,7 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 from datetime import datetime
-from DC_Motor_pi import DC_Motor
+from ..libs.DC_Motor_pi import DC_Motor
 
 
 # hardware pwm: 12, 32, 33, 35

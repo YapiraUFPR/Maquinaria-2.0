@@ -4,7 +4,7 @@ import numpy as np
 
 # BGR values to filter only the selected color range
 # lower_bgr_values = np.array([185,  190,  191])
-lower_bgr_values = np.array([192,  193,  193])
+lower_bgr_values = np.array([90,90,90])
 
 upper_bgr_values = np.array([255, 255, 255])
 
@@ -86,7 +86,7 @@ def get_contour_data(mask, out):
 
 
 
-image_path = "bosta.png"
+image_path = "./sample_img.png"
 
 image = cv2.imread(image_path)
 
@@ -102,8 +102,8 @@ data = get_contour_data(mask, image)
 
 cv2.imshow("image", image)
 cv2.imshow("mask", mask)
-
 cv2.waitKey(0)
+
 
 
 # cv2.imwrite("BRUH.png", image)

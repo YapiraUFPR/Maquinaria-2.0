@@ -148,7 +148,7 @@ def crop_size(height, width):
     """
     ## Update these parameters as well.
 
-    return (0, 3*height//5, 0, width)
+    return (3*height//5, height, 0, width)
 
 def show_callback():
     global should_show
