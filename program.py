@@ -19,6 +19,7 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
+import threading
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -141,6 +142,24 @@ upper_bgr_values = np.array([255, 255, 255])
 # HSV values to filter only the selected color range
 lower_hsv_values = np.array([84, 2, 118])
 upper_hsv_values = np.array([109, 159, 255])
+
+
+
+
+def task_stream_video():
+    global record_frames
+
+    last_image_sent = None
+    while True:
+        try:
+            last_image = record_frames[-1]
+        except IndexError:
+            last_image = None
+
+        if last_image_sent != last_image:
+            last_image_sent = last_image
+            _, imdata = cv2.imencode('.jpg', last_image)
+            requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
 
 def crop_size(height, width):
@@ -499,13 +518,13 @@ def process_frame(image_input, last_res_v):
             cv2.circle(output, (line['x'], crop_h_start + line['y']), 1, (0,255,0), 1)
             cv2.rectangle(output, (x - width, crop_h_start), (x + width, crop_h_stop), (0,0,255), 2)
 
-        if should_show:
+        # if should_show:
             # Print the image for 5milis, then resume execution
             # cv2.imshow("output", output)
             # cv2.waitKey(5)
-            _, imdata = cv2.imencode('.jpg', output)
+            # _, imdata = cv2.imencode('.jpg', output)
             # _, imdata = cv2.imencode('.jpg', mask)
-            requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
+            # requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
         if should_record:
             record_frames.append(output)
@@ -569,15 +588,18 @@ def main():
 
     if args.record: # should record image
         record_callback()
+        
+    thread_stream = Thread(target=task_stream_video)
+    if args.output != None:
+        show_callback()
+        thread_stream.start()
 
     if args.write:  # should write values to csv
         write_callback()
 
-    if args.output != None: # should show image
-        show_callback()
-
     if args.stop != None: # should show image
         stop_callback()
+
 
     points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height - 5), (7 * width // 8, height - 5)]
     original_perspective = np.float32(points)
