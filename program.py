@@ -138,6 +138,10 @@ RESIZE_SIZE = 4
 lower_bgr_values = np.array([170,  170,  170])
 upper_bgr_values = np.array([255, 255, 255])
 
+# HSV values to filter only the selected color range
+lower_hsv_values = np.array([84, 2, 118])
+upper_hsv_values = np.array([109, 159, 255])
+
 
 def crop_size(height, width):
     """
@@ -347,9 +351,14 @@ def process_frame(image_input, last_res_v):
     # get the bottom part of the image (matrix slicing)
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
+    hsv = cv.cvtColor(crop, cv.COLOR_BGR2HSV)
+
+
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
+
 
 
     # get the centroid of the biggest contour in the picture,
