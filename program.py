@@ -19,7 +19,7 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
-import threading
+from Thread import threading
 
 # init arg parser
 parser = argparse.ArgumentParser()
