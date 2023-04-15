@@ -351,7 +351,7 @@ def process_frame(image_input, last_res_v):
     # get the bottom part of the image (matrix slicing)
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
-    hsv = cv.cvtColor(crop, cv.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
 
     # get a binary picture, where non-zero values represent the line.
