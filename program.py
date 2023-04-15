@@ -92,8 +92,8 @@ MAX_CONTOUR_VERTICES = 50
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 45.0
-LINEAR_SPEED_ON_LOSS = 25.0
-LINEAR_SPEED_ON_CURVE = 23.5
+LINEAR_SPEED_ON_LOSS = 19.0
+LINEAR_SPEED_ON_CURVE = 20.5
 
 # error when the curve starts
 CURVE_ERROR_THRH =  22
@@ -172,7 +172,11 @@ def crop_size(height, width):
     ## Update these parameters as well.
 
     #return (3*height//5, height, 0, width)
-    return (2*height//5, 3*height//5, 0, width)
+    # return (2*height//5, 3*height//5, 0, width)
+    # return (4*height//5, height, 0, width)
+    return (3*height//5, 4*height//5, 0, width)
+
+
 
 def show_callback():
     global should_show
