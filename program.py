@@ -24,9 +24,19 @@ from os import makedirs
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--start", action="store_true", help="Follow line")
 parser.add_argument("-r", "--record", action="store_true", help="Record masked image")
-parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
-parser.add_argument("-o", "--output", metavar="address", action="store", help="Show output image to ip address")
-parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
+parser.add_argument(
+    "-w", "--write", action="store_true", help="Write encoder values to csv"
+)
+parser.add_argument(
+    "-o",
+    "--output",
+    metavar="address",
+    action="store",
+    help="Show output image to ip address",
+)
+parser.add_argument(
+    "-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds"
+)
 args = parser.parse_args()
 
 # pins setup
@@ -55,7 +65,7 @@ encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
 encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
 
 # Global vars. initial values
-runtime = 0 # time until it should stop
+runtime = 0  # time until it should stop
 init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
@@ -95,8 +105,8 @@ LINEAR_SPEED_ON_LOSS = 5.0
 LINEAR_SPEED_ON_CURVE = 6.5
 
 # error when the curve starts
-CURVE_ERROR_THRH =  22
-LOSS_THRH =  40
+CURVE_ERROR_THRH = 22
+LOSS_THRH = 40
 
 
 FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS = 10
@@ -108,7 +118,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 23/100
+KP = 23 / 100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -128,14 +138,14 @@ RESIZE_SIZE = 4
 # FINALIZATION_PERIOD = 4
 
 # Time the robot takes to finish the track in seconds
-#RUNTIME = 127.0
+# RUNTIME = 127.0
 
 # The maximum error value for which the robot is still in a straight line
 # MAX_ERROR = 30
 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([110,  110,  35])
+lower_bgr_values = np.array([110, 110, 35])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
@@ -168,11 +178,10 @@ def crop_size(height, width):
     """
     ## Update these parameters as well.
 
-    #return (3*height//5, height, 0, width)
+    # return (3*height//5, height, 0, width)
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
-    return (3*height//5, 4*height//5, 0, width)
-
+    return (3 * height // 5, 4 * height // 5, 0, width)
 
 
 def show_callback():
@@ -183,6 +192,7 @@ def show_callback():
     print("SHOWING")
     print(">>", end="")
 
+
 def record_callback():
     global should_record
     global record_frames
@@ -191,16 +201,26 @@ def record_callback():
     print("RECORDING")
     print(">>", end="")
 
+
 def write_callback():
     global should_write
     global csv_writer
     global csv_file
     should_write = True
-    csv_file = open(f"./outputs/values-{datetime.now().minute}.csv", 'w')
+    csv_file = open(f"./outputs/values-{datetime.now().minute}.csv", "w")
     csv_writer = csv.writer(csv_file)
-    header = ['timestamp','resultante', 'distancia direita', 'distancia esquerda', 'linear', 'angular', 'erro']
+    header = [
+        "timestamp",
+        "resultante",
+        "distancia direita",
+        "distancia esquerda",
+        "linear",
+        "angular",
+        "erro",
+    ]
     # write the header
     csv_writer.writerow(header)
+
 
 def end_write():
     global should_write
@@ -209,16 +229,23 @@ def end_write():
         csv_file.close()
         print("Finished writing")
 
+
 def end_record():
     global should_record
     global record_frames
     global shape
     if should_record:
-        writer = cv2.VideoWriter(f"./outputs/pov-{datetime.now().minute}.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, shape)
+        writer = cv2.VideoWriter(
+            f"./outputs/pov-{datetime.now().minute}.mp4",
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            30,
+            shape,
+        )
         for frame in record_frames:
             writer.write(frame)
         writer.release()
         print("Finished recording")
+
 
 def stop_callback():
     global should_stop
@@ -229,6 +256,7 @@ def stop_callback():
     should_stop = True
     print("WILL STOP")
     print(">>", end="")
+
 
 def start_follower_callback(request, response):
     """
@@ -246,6 +274,7 @@ def start_follower_callback(request, response):
 
     print(">>", end="")
     return response
+
 
 def stop_follower_callback(request, response):
     """
@@ -272,7 +301,7 @@ def get_contour_data(mask, out, previous_pos):
 
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
-    #mask = cv2.erode(mask, kernel, iterations=1)
+    # mask = cv2.erode(mask, kernel, iterations=1)
 
     # get a list of contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -284,8 +313,11 @@ def get_contour_data(mask, out, previous_pos):
 
     possible_tracks = []
 
-    while not over:
+    x = None
 
+    height, width, _ = out.shape
+
+    while not over:
         for contour in contours:
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
@@ -293,29 +325,59 @@ def get_contour_data(mask, out, previous_pos):
             contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
             # print("vertices: ", contour_vertices)
 
-            if (M['m00'] < MIN_AREA):
+            if M["m00"] < MIN_AREA:
                 continue
 
-            if (contour_vertices < MAX_CONTOUR_VERTICES) and (M['m00'] > MIN_AREA_TRACK):
+            if (contour_vertices < MAX_CONTOUR_VERTICES) and (
+                M["m00"] > MIN_AREA_TRACK
+            ):
                 # Contour is part of the track
-                line['x'] = crop_w_start + int(M["m10"]/M["m00"])
-                line['y'] = int(M["m01"]/M["m00"])
+                line["x"] = crop_w_start + int(M["m10"] / M["m00"])
+                line["y"] = int(M["m01"] / M["m00"])
 
                 possible_tracks.append(line)
 
                 # plot the amount of vertices in light blue
-                cv2.drawContours(out, contour, -1, (255,255,0), 1)
+                cv2.drawContours(out, contour, -1, (255, 255, 0), 1)
                 # cv2.putText(out, str(M['m00']), (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
                 #     cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (100,200,150), 1)
 
-                cv2.putText(out, str(contour_vertices), (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
-                    cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (100,200,150), 1)
+                cv2.putText(
+                    out,
+                    str(contour_vertices),
+                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    2 / (RESIZE_SIZE / 3),
+                    (100, 200, 150),
+                    1,
+                )
+
+                vx, vy, x1, y1 = cv2.fitLine(contour, cv2.DIST_L2, 0, 0.01, 0.01)
+                y2 = y1 + vy
+                x2 = x1 + vx
+
+                y = line["y"] - 20
+                x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
+                if x < 0:
+                    x = 1
+                if x > width:
+                    x = width
+
+                print(f"circle at {x, y}")
+                cv2.circle(out, (x, y), 50, (45, 50, 255), 50)
 
             else:
                 # plot the area in pink
-                cv2.drawContours(out, contour, -1, (255,0,255), 1)
-                cv2.putText(out, f"{contour_vertices}-{M['m00']}", (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
-                    cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (255,0,255), 2)
+                cv2.drawContours(out, contour, -1, (255, 0, 255), 1)
+                cv2.putText(
+                    out,
+                    f"{contour_vertices}-{M['m00']}",
+                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    2 / (RESIZE_SIZE / 3),
+                    (255, 0, 255),
+                    2,
+                )
 
         if line:
             over = True
@@ -323,7 +385,9 @@ def get_contour_data(mask, out, previous_pos):
         # Did not find the line. Try eroding more?
         elif not tried_once:
             mask = cv2.erode(mask, kernel, iterations=1)
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contours, _ = cv2.findContours(
+                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+            )
             tried_once = True
 
         # Did not find anything
@@ -333,9 +397,11 @@ def get_contour_data(mask, out, previous_pos):
     if not possible_tracks:
         chosen_line = None
     else:
-        chosen_line = min(possible_tracks, key=lambda line: abs(line["x"] - previous_pos))
+        chosen_line = min(
+            possible_tracks, key=lambda line: abs(line["x"] - previous_pos)
+        )
 
-    return chosen_line
+    return chosen_line, x
 
 
 def process_frame(image_input, last_res_v):
@@ -362,40 +428,39 @@ def process_frame(image_input, last_res_v):
     global crop_w_start
     crop_h_start, crop_h_stop, crop_w_start, crop_w_stop = crop_size(height, width)
 
-    cx = width//2
+    cx = width // 2
 
     # get the bottom part of the image (matrix slicing)
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
-    #hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-
+    # hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
     mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
-    #mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
-
-
+    # mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
     output = image
-    line = get_contour_data(mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx)
+    line, expected_x = get_contour_data(
+        mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
+    )
     # also get the side in which the track mark "is"
 
     x = None
 
-    if line:
-        x = line['x']
+    if expected_x:
+        # x = line['x']
+        x = expected_x
         new_error = x - cx
     else:
         new_error = None
 
+    print(expected_x, line)
     # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
 
-    if (line) and ((not lost) or (
-        abs(new_error - error) < LOSS_THRH)):
-
+    if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
         # error:= The difference between the center of the image and the center of the line
         error = new_error
 
@@ -428,7 +493,6 @@ def process_frame(image_input, last_res_v):
 
         linear = LINEAR_SPEED_ON_LOSS
 
-
     global runtime
     # Check for final countdown
     if should_move and should_stop:
@@ -436,14 +500,13 @@ def process_frame(image_input, last_res_v):
             should_move = False
             print(f"STOPPED AT {datetime.now()}")
 
-
     # Determine the speed to turn and get the line in the center of the camera.
     angular = float(error) * -KP
 
     # resulting speed
     res_v = {
-        "left" : 0, # left motor resulting speed
-        "right" : 0 # right motor resulting speed
+        "left": 0,  # left motor resulting speed
+        "right": 0,  # right motor resulting speed
     }
     res_v["left"] = int(linear - angular)
     res_v["right"] = int(linear + angular)
@@ -451,7 +514,9 @@ def process_frame(image_input, last_res_v):
     left_should_rampup = False
     right_should_rampup = False
 
-    if (last_res_v["left"] == res_v["left"]) and (last_res_v["right"] == res_v["right"]):
+    if (last_res_v["left"] == res_v["left"]) and (
+        last_res_v["right"] == res_v["right"]
+    ):
         no_movement_count += 1
     else:
         no_movement_count = 0
@@ -461,7 +526,6 @@ def process_frame(image_input, last_res_v):
         right_should_rampup = True
         no_movement_count = 0
 
-
     if (last_res_v["left"] <= MIN_SPEED) and (res_v["left"] > last_res_v["left"]):
         left_should_rampup = True
 
@@ -469,7 +533,6 @@ def process_frame(image_input, last_res_v):
         right_should_rampup = True
 
     if should_move:
-
         # if left_should_rampup:
         #     motor_left.run(90)
         # if right_should_rampup:
@@ -484,7 +547,7 @@ def process_frame(image_input, last_res_v):
         motor_left.stop()
         motor_right.stop()
 
-    #Show the output image to the user
+    # Show the output image to the user
     global should_record
     global should_show
     global should_write
@@ -505,32 +568,63 @@ def process_frame(image_input, last_res_v):
         text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 2, 2)
         text_w, text_h = text_size
 
-        #cv2.rectangle(output, (0, 90), (text_w, 110 + text_h), (255,255,255), -1) <- mysterious white line
+        # cv2.rectangle(output, (0, 90), (text_w, 110 + text_h), (255,255,255), -1) <- mysterious white line
         # Plot the boundaries where the image was cropped
-        cv2.rectangle(output, (crop_w_start, crop_h_start), (crop_w_stop, crop_h_stop), (0,0,255), 2)
+        cv2.rectangle(
+            output,
+            (crop_w_start, crop_h_start),
+            (crop_w_stop, crop_h_stop),
+            (0, 0, 255),
+            2,
+        )
+
         # center of the image
-        cv2.circle(output, (cx, crop_h_start + (height//2)), 1, (75,0,130), 1)
+        cv2.circle(output, (cx, crop_h_start + (height // 2)), 1, (75, 0, 130), 1)
         # cv2.putText(output, now, (0, text_h - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (50, 255, 255), 1)
-        cv2.putText(output, debug_str, (0, text_h - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 255, 100), 1)
-        cv2.putText(output, debug_str2, (0, text_h), cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 255, 100), 1)
+        cv2.putText(
+            output,
+            debug_str,
+            (0, text_h - 10),
+            cv2.FONT_HERSHEY_PLAIN,
+            0.5,
+            (0, 255, 100),
+            1,
+        )
+        cv2.putText(
+            output,
+            debug_str2,
+            (0, text_h),
+            cv2.FONT_HERSHEY_PLAIN,
+            0.5,
+            (0, 255, 100),
+            1,
+        )
 
         # plot the rectangle around contour center
         if x:
-            cv2.circle(output, (line['x'], crop_h_start + line['y']), 1, (0,255,0), 1)
-            cv2.rectangle(output, (x - width, crop_h_start), (x + width, crop_h_stop), (0,0,255), 2)
+            cv2.circle(output, (line["x"], crop_h_start + line["y"]), 1, (0, 255, 0), 1)
+            cv2.rectangle(
+                output,
+                (x - width, crop_h_start),
+                (x + width, crop_h_stop),
+                (0, 0, 255),
+                2,
+            )
 
-        frame = np.append(output, mask, axis=1)
+        # frame = np.append(output, mask, axis=1)
 
         if should_show:
             # Print the image for 5milis, then resume execution
             # cv2.imshow("output", output)
             # cv2.waitKey(5)
-            _, imdata = cv2.imencode('.jpg', frame)
+            _, imdata = cv2.imencode(".jpg", output)
             # _, imdata = cv2.imencode('.jpg', mask)
-            requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
+            requests.put(
+                f"http://{ip_addr}:5000/upload", data=imdata.tobytes()
+            )  # send image to webserver
 
         if should_record:
-            record_frames.append(frame)
+            record_frames.append(output)
 
     global encoder_ml
     global encoder_mr
@@ -538,17 +632,26 @@ def process_frame(image_input, last_res_v):
     encoder_mr.read_encoders()
     if should_write:
         result_distance = (encoder_mr.distance + encoder_ml.distance) / 2
-        data = [datetime.now().second,result_distance, encoder_mr.distance, encoder_ml.distance, linear, angular, error]
+        data = [
+            datetime.now().second,
+            result_distance,
+            encoder_mr.distance,
+            encoder_ml.distance,
+            linear,
+            angular,
+            error,
+        ]
         csv_writer.writerow(data)
 
     # Uncomment to show the binary picture
-    #cv2.imshow("mask", mask)
+    # cv2.imshow("mask", mask)
 
-    return res_v # return speed of the current iteration
+    return res_v  # return speed of the current iteration
 
 
 def timeout(signum, frame):
     raise TimeoutError
+
 
 def main():
     global lost
@@ -561,7 +664,6 @@ def main():
 
     print(datetime.now())
 
-
     # Use system signals to stop input()
     signal.signal(signal.SIGALRM, timeout)
 
@@ -571,13 +673,12 @@ def main():
     video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
-
     retval, image = video.read()
 
     # set resize settings
     height, width, _ = image.shape
     shape = (width, height)
-    error = width//(RESIZE_SIZE*2)
+    error = width // (RESIZE_SIZE * 2)
     print(image.shape)
     print(">>", end="")
 
@@ -585,44 +686,43 @@ def main():
     if not exists("outputs"):
         makedirs("outputs")
 
-
     if args.start:  # should start following line
         start_follower_callback(None, None)
 
-    if args.record: # should record image
+    if args.record:  # should record image
         record_callback()
 
     if args.output != None:
         show_callback()
-        #thread_stream.start()
+        # thread_stream.start()
 
     if args.write:  # should write values to csv
         write_callback()
 
-    if args.stop != None: # should show image
+    if args.stop != None:  # should show image
         stop_callback()
 
-
-    points = [(3 * width // 8, (height // 2) + 30), (5 * width // 8, (height // 2) + 30), (1 * width // 8, height - 5), (7 * width // 8, height - 5)]
+    points = [
+        (3 * width // 8, (height // 2) + 30),
+        (5 * width // 8, (height // 2) + 30),
+        (1 * width // 8, height - 5),
+        (7 * width // 8, height - 5),
+    ]
     original_perspective = np.float32(points)
     new = np.float32([(0, 0), (width, 0), (0, height), (width, height)])
     matrix = cv2.getPerspectiveTransform(original_perspective, new)
 
-    last_res_v = {
-        "left" : 0,
-        "right" : 0
-    }
+    last_res_v = {"left": 0, "right": 0}
 
     fps_count = 0
     ts = time.time()
 
     while retval:
         try:
+            # image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
+            # perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
 
-            #image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            #perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
-
-            perspective = image 
+            perspective = image
             last_res_v = process_frame(perspective, last_res_v)
             retval, image = video.read()
 
@@ -636,6 +736,7 @@ def main():
             pass
 
     print("Exiting...")
+
 
 try:
     main()
@@ -655,6 +756,6 @@ finally:
     del encoder_mr
     GPIO.cleanup()
     del motor_left
-    #video.close()
+    # video.close()
     end_write()
     end_record()

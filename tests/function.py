@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import astar
 import math
 
 ## MAKE ALL THESE VALUES INTERACTIVE
