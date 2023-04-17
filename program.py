@@ -359,11 +359,6 @@ def process_frame(image_input, last_res_v):
     global no_movement_count
     global after_loss_count
 
-    res_v = {
-        "left" : 0, # left motor resulting speed
-        "right" : 0 # right motor resulting speed
-    }
-
     height, width, _ = image_input.shape
     image = image_input
 
@@ -449,6 +444,10 @@ def process_frame(image_input, last_res_v):
     angular = float(error) * -KP
 
     # resulting speed
+    res_v = {
+        "left" : 0, # left motor resulting speed
+        "right" : 0 # right motor resulting speed
+    }
     res_v["left"] = int(linear - angular)
     res_v["right"] = int(linear + angular)
 
@@ -496,7 +495,7 @@ def process_frame(image_input, last_res_v):
     global record_frames
     global csv_writer
 
-    now = f"{datetime.now().strftime('%M:%S.%f')[:-4]}"
+    # now = f"{datetime.now().strftime('%M:%S.%f')[:-4]}"
     debug_str = f"A: {int(angular)}|L: {linear}|E: {error}"
     debug_str += f"lft{res_v['left']}"
     if left_should_rampup:
@@ -523,16 +522,18 @@ def process_frame(image_input, last_res_v):
             cv2.circle(output, (line['x'], crop_h_start + line['y']), 1, (0,255,0), 1)
             cv2.rectangle(output, (x - width, crop_h_start), (x + width, crop_h_stop), (0,0,255), 2)
 
+        frame = np.append(output, mask, axis=1)
+
         if should_show:
             # Print the image for 5milis, then resume execution
             # cv2.imshow("output", output)
             # cv2.waitKey(5)
-            _, imdata = cv2.imencode('.jpg', output)
+            _, imdata = cv2.imencode('.jpg', frame)
             # _, imdata = cv2.imencode('.jpg', mask)
             requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
         if should_record:
-            record_frames.append(output)
+            record_frames.append(frame)
 
     global encoder_ml
     global encoder_mr
