@@ -19,7 +19,6 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
-from threading import Thread
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -91,9 +90,9 @@ MAX_CONTOUR_VERTICES = 50
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 45.0
-LINEAR_SPEED_ON_LOSS = 19.0
-LINEAR_SPEED_ON_CURVE = 20.5
+LINEAR_SPEED = 40.0
+LINEAR_SPEED_ON_LOSS = 5.0
+LINEAR_SPEED_ON_CURVE = 6.5
 
 # error when the curve starts
 CURVE_ERROR_THRH =  22
@@ -109,7 +108,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 22/100
+KP = 23/100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -136,7 +135,7 @@ RESIZE_SIZE = 4
 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([130,  130,  40])
+lower_bgr_values = np.array([110,  110,  35])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
@@ -144,22 +143,20 @@ lower_hsv_values = np.array([79, 0, 113])
 upper_hsv_values = np.array([120, 170, 255])
 
 
+# def task_stream_video():
+#     global record_frames
 
+#     last_image_sent = None
+#     while True:
+#         try:
+#             last_image = record_frames[-1]
+#         except IndexError:
+#             last_image = None
 
-def task_stream_video():
-    global record_frames
-
-    last_image_sent = None
-    while True:
-        try:
-            last_image = record_frames[-1]
-        except IndexError:
-            last_image = None
-
-        if last_image_sent != last_image:
-            last_image_sent = last_image
-            _, imdata = cv2.imencode('.jpg', last_image)
-            requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
+#         if last_image_sent != last_image:
+#             last_image_sent = last_image
+#             _, imdata = cv2.imencode('.jpg', last_image)
+#             requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
 
 
 def crop_size(height, width):
@@ -595,7 +592,6 @@ def main():
     if args.record: # should record image
         record_callback()
 
-    thread_stream = Thread(target=task_stream_video)
     if args.output != None:
         show_callback()
         #thread_stream.start()
