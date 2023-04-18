@@ -65,4 +65,6 @@ class Encoder:
         self.calc_rpm = self.frequency * 60 // self.steps
         self.rotations = self.total_pulse_counter // self.steps 
         self.distance = ((2 * 3.14 * self.radius_wheel) / self.steps) * self.pulse_counter
-        
+
+    def __del__(self):
+        GPIO.cleanup()

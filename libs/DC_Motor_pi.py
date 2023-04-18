@@ -65,9 +65,6 @@ class DC_Motor:
             print(value)
             raise e
 
-
-
     def __del__(self):
         self.pwm_control.stop()
-
-        
+        GPIO.cleanup()

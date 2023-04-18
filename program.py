@@ -9,7 +9,7 @@ __author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique and Isadora Bota
 import numpy as np
 import cv2
 import signal
-import RPi.GPIO as GPIO
+# import RPi.GPIO as GPIO
 from libs.DC_Motor_pi import DC_Motor
 from libs.encoder import Encoder
 import requests
@@ -24,19 +24,9 @@ from os import makedirs
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--start", action="store_true", help="Follow line")
 parser.add_argument("-r", "--record", action="store_true", help="Record masked image")
-parser.add_argument(
-    "-w", "--write", action="store_true", help="Write encoder values to csv"
-)
-parser.add_argument(
-    "-o",
-    "--output",
-    metavar="address",
-    action="store",
-    help="Show output image to ip address",
-)
-parser.add_argument(
-    "-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds"
-)
+parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
+parser.add_argument("-o", "--output", metavar="address", action="store",help="Show output image to ip address")
+parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
 args = parser.parse_args()
 
 # pins setup
@@ -153,22 +143,6 @@ lower_hsv_values = np.array([79, 0, 113])
 upper_hsv_values = np.array([120, 170, 255])
 
 
-# def task_stream_video():
-#     global record_frames
-
-#     last_image_sent = None
-#     while True:
-#         try:
-#             last_image = record_frames[-1]
-#         except IndexError:
-#             last_image = None
-
-#         if last_image_sent != last_image:
-#             last_image_sent = last_image
-#             _, imdata = cv2.imencode('.jpg', last_image)
-#             requests.put(f"http://{ip_addr}:5000/upload", data=imdata.tobytes()) # send image to webserver
-
-
 def crop_size(height, width):
     """
     Get the measures to crop the image
@@ -209,15 +183,7 @@ def write_callback():
     should_write = True
     csv_file = open(f"./outputs/values-{datetime.now().minute}.csv", "w")
     csv_writer = csv.writer(csv_file)
-    header = [
-        "timestamp",
-        "resultante",
-        "distancia direita",
-        "distancia esquerda",
-        "linear",
-        "angular",
-        "erro",
-    ]
+    header = ["timestamp","resultante","distancia direita","distancia esquerda","linear","angular","erro",]
     # write the header
     csv_writer.writerow(header)
 
@@ -233,14 +199,15 @@ def end_write():
 def end_record():
     global should_record
     global record_frames
-    global shape
     if should_record:
+        h, w, _ = record_frames[0].shape
         writer = cv2.VideoWriter(
             f"./outputs/pov-{datetime.now().minute}.mp4",
             cv2.VideoWriter_fourcc(*"mp4v"),
             30,
-            shape,
+            (h, w),
         )
+        print(len(record_frames))
         for frame in record_frames:
             writer.write(frame)
         writer.release()
@@ -363,8 +330,18 @@ def get_contour_data(mask, out, previous_pos):
                 if x > width:
                     x = width
 
-                print(f"circle at {x, y}")
-                cv2.circle(out, (x, y), 50, (45, 50, 255), 50)
+                print(vy, y, y1)
+
+                # check if contour is a crossing
+                cx,cy,cw,ch = cv2.boundingRect(contour)
+                line["is_crossing"] = (cw >= width and ch >= height and cx == 0 and cy == 0)
+                
+                line["area"] = M["m00"]
+                line["len"] = contour_vertices
+                line["expected_x"] = x
+
+                #print(f"circle at {x, y}")
+                cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
 
             else:
                 # plot the area in pink
@@ -401,7 +378,7 @@ def get_contour_data(mask, out, previous_pos):
             possible_tracks, key=lambda line: abs(line["x"] - previous_pos)
         )
 
-    return chosen_line, x
+    return chosen_line
 
 
 def process_frame(image_input, last_res_v):
@@ -443,24 +420,24 @@ def process_frame(image_input, last_res_v):
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
     output = image
-    line, expected_x = get_contour_data(
+    line = get_contour_data(
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
     # also get the side in which the track mark "is"
 
     x = None
 
-    if expected_x:
-        # x = line['x']
-        x = expected_x
+    if line:
+        x = line['x'] if line['is_crossing'] else line['expected_x']
         new_error = x - cx
     else:
-        new_error = None
+        new_error = 0
 
-    print(expected_x, line)
+    # print(expected_x, line)
     # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
 
     if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
+        print(line)
         # error:= The difference between the center of the image and the center of the line
         error = new_error
 
@@ -505,11 +482,9 @@ def process_frame(image_input, last_res_v):
 
     # resulting speed
     res_v = {
-        "left": 0,  # left motor resulting speed
-        "right": 0,  # right motor resulting speed
+        "left": int(linear - angular),  # left motor resulting speed
+        "right": int(linear + angular),  # right motor resulting speed
     }
-    res_v["left"] = int(linear - angular)
-    res_v["right"] = int(linear + angular)
 
     left_should_rampup = False
     right_should_rampup = False
@@ -533,12 +508,12 @@ def process_frame(image_input, last_res_v):
         right_should_rampup = True
 
     if should_move:
-        # if left_should_rampup:
-        #     motor_left.run(90)
-        # if right_should_rampup:
-        #     motor_right.run(90)
-        # if left_should_rampup or right_should_rampup:
-        #     time.sleep(0.008)
+    #     # if left_should_rampup:
+    #     #     motor_left.run(90)
+    #     # if right_should_rampup:
+    #     #     motor_right.run(90)
+    #     # if left_should_rampup or right_should_rampup:
+    #     #     time.sleep(0.008)
 
         motor_left.run(res_v["left"])
         motor_right.run(res_v["right"])
@@ -556,13 +531,13 @@ def process_frame(image_input, last_res_v):
     global csv_writer
 
     # now = f"{datetime.now().strftime('%M:%S.%f')[:-4]}"
-    debug_str = f"A: {int(angular)}|L: {linear}|E: {error}"
-    debug_str += f"lft{res_v['left']}"
-    if left_should_rampup:
-        debug_str += "(rmp)"
-    debug_str += f"rgt{res_v['right']}"
-    if right_should_rampup:
-        debug_str += "(rmp)"
+    debug_str = f"A: {int(angular)}|L: {linear}|E: {error}|"
+    debug_str += f"lft{res_v['left']}|rgt{res_v['right']}|"
+    debug_str3 = f"cVert:{line['len']}|cArea:{line['area']}" if line else ""
+    # if left_should_rampup:
+    #     debug_str += "(rmp)"
+    # if right_should_rampup:
+    #     debug_str += "(rmp)"
 
     if should_record or should_show:
         text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 2, 2)
@@ -584,18 +559,27 @@ def process_frame(image_input, last_res_v):
         cv2.putText(
             output,
             debug_str,
-            (0, text_h - 10),
+            (0, text_h),
             cv2.FONT_HERSHEY_PLAIN,
-            0.5,
+            1,
             (0, 255, 100),
             1,
         )
         cv2.putText(
             output,
             debug_str2,
-            (0, text_h),
+            (0, text_h + 15),
             cv2.FONT_HERSHEY_PLAIN,
-            0.5,
+            1,
+            (0, 255, 100),
+            1,
+        )
+        cv2.putText(
+            output,
+            debug_str3,
+            (0, text_h + 30),
+            cv2.FONT_HERSHEY_PLAIN,
+            1,
             (0, 255, 100),
             1,
         )
@@ -611,20 +595,22 @@ def process_frame(image_input, last_res_v):
                 2,
             )
 
-        # frame = np.append(output, mask, axis=1)
+        out_mask = np.zeros_like(output)
+        out_mask[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop] =  cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        output_frame = np.append(output, out_mask, axis=1)
 
         if should_show:
             # Print the image for 5milis, then resume execution
             # cv2.imshow("output", output)
             # cv2.waitKey(5)
-            _, imdata = cv2.imencode(".jpg", output)
+            _, imdata = cv2.imencode(".jpg", output_frame)
             # _, imdata = cv2.imencode('.jpg', mask)
             requests.put(
                 f"http://{ip_addr}:5000/upload", data=imdata.tobytes()
             )  # send image to webserver
 
         if should_record:
-            record_frames.append(output)
+            record_frames.append(output_frame)
 
     global encoder_ml
     global encoder_mr
@@ -668,7 +654,7 @@ def main():
     signal.signal(signal.SIGALRM, timeout)
 
     # set camera captura settings
-    video = cv2.VideoCapture(0)
+    video = cv2.VideoCapture("./tests/sample3_cut.mp4")
     video.set(cv2.CAP_PROP_FPS, 90)
     video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
@@ -734,6 +720,8 @@ def main():
 
         except TimeoutError:
             pass
+            
+        time.sleep(0.1)
 
     print("Exiting...")
 
@@ -747,15 +735,15 @@ except KeyboardInterrupt:
     print(f"TOTAL TIME {now - init_time_iso}")
     print("\nExiting...")
 
-except Exception as e:
-    print(e)
+# except Exception as e:
+#     print(e)
 
 finally:
     del motor_right
+    del motor_left
     del encoder_ml
     del encoder_mr
-    GPIO.cleanup()
-    del motor_left
+    # GPIO.cleanup()
     # video.close()
     end_write()
     end_record()
