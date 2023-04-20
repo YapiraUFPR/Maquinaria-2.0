@@ -58,7 +58,7 @@ class Encoder:
                 self.current_dir = "horário"
                 self.pulse_counter -= 1
 
-        last_a_state = current_a_state
+        self.last_a_state = current_a_state
 
         # some rotory encoder calculations
         self.frequency = 1/self.period

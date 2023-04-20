@@ -19,6 +19,8 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
+from math import sqrt
+import json
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -27,6 +29,8 @@ parser.add_argument("-r", "--record", action="store_true", help="Record masked i
 parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
 parser.add_argument("-o", "--output", metavar="address", action="store",help="Show output image to ip address")
 parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
+parser.add_argument("-m", "--map", metavar="store_true", help="Create a map of the track")
+parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
 args = parser.parse_args()
 
 # pins setup
@@ -44,7 +48,7 @@ motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 # encoder values
 STEPS_NUMBER = 7
 RPM = 800
-RADIUS_WHEEL = 5.0
+RADIUS_WHEEL = 16 # millimeters
 
 # encoder pin setup
 encoder_a_ml = 19
@@ -68,6 +72,10 @@ should_record = False
 should_show = False
 should_stop = False
 should_write = False
+should_map = False
+should_use_map = False
+map = {}
+current_strech = 0
 record_frames = []
 shape = ()
 
@@ -133,6 +141,11 @@ RESIZE_SIZE = 4
 # The maximum error value for which the robot is still in a straight line
 # MAX_ERROR = 30
 
+# mapping calculations
+WHEELS_DISTANCE = 123 # in milimeters
+GRAVITY = 9.8
+STATIC_FRICTION_COEFFICIENT = 0.5 # TO BE CALCULATED
+MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
 lower_bgr_values = np.array([110, 110, 35])
@@ -224,6 +237,26 @@ def stop_callback():
     print("WILL STOP")
     print(">>", end="")
 
+def map_callback():
+    global should_map
+    should_map = True
+    print("WILL MAP")
+    print(">>", end="")
+
+def save_map():
+    global should_map
+    global map
+    if should_map:
+        with open(f'{datetime.now()}_map.json', 'w') as output_file:
+            output_file.write(json.dumps(map))
+
+def load_map(filename):
+    global should_use_map
+    global map 
+    should_use_map = True
+    print("LOADING MAP")
+    map_file = open(filename, "r")
+    map = json.load(map_file)
 
 def start_follower_callback(request, response):
     """
@@ -256,6 +289,20 @@ def stop_follower_callback(request, response):
     print(">>", end="")
     return response
 
+def get_track_radius():
+    """
+    Calculate track radius using encoder measures
+    """
+    if (encoder_mr.distance == encoder_ml.distance):
+        return float('inf')
+
+    return (WHEELS_DISTANCE / 2) * ((encoder_mr.distance + encoder_ml.distance) / (encoder_mr.distance - encoder_ml.distance))
+
+def get_max_speed():
+    """
+    Calculate the max speed for the current track part
+    """
+    return sqrt(get_track_radius() * GRAVITY * STATIC_FRICTION_COEFFICIENT)
 
 def get_contour_data(mask, out, previous_pos):
     """
@@ -398,6 +445,9 @@ def process_frame(image_input, last_res_v):
     global lost
     global no_movement_count
     global after_loss_count
+    global should_map
+    global should_use_map
+    global map
 
     height, width, _ = image_input.shape
     image = image_input
@@ -446,10 +496,18 @@ def process_frame(image_input, last_res_v):
 
         lost = False
 
-        if abs(error) > CURVE_ERROR_THRH:
-            linear = LINEAR_SPEED_ON_CURVE
+        
+        res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
+        if should_map:
+            map[res_dist//MAP_INTERVAL] = get_max_speed()
+
+        if should_use_map:
+            linear = map[res_dist//MAP_INTERVAL] if res_dist in map else last_res_v["linear"]
         else:
-            linear = LINEAR_SPEED
+            if abs(error) > CURVE_ERROR_THRH:
+                linear = LINEAR_SPEED_ON_CURVE
+            else:
+                linear = LINEAR_SPEED
 
         if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
             linear = LINEAR_SPEED_ON_LOSS
@@ -484,6 +542,7 @@ def process_frame(image_input, last_res_v):
     res_v = {
         "left": int(linear - angular),  # left motor resulting speed
         "right": int(linear + angular),  # right motor resulting speed
+        "linear": linear,
     }
 
     left_should_rampup = False
@@ -654,7 +713,7 @@ def main():
     signal.signal(signal.SIGALRM, timeout)
 
     # set camera captura settings
-    video = cv2.VideoCapture("./tests/sample3_cut.mp4")
+    video = cv2.VideoCapture(0)
     video.set(cv2.CAP_PROP_FPS, 90)
     video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
@@ -687,6 +746,17 @@ def main():
 
     if args.stop != None:  # should show image
         stop_callback()
+
+
+    ##############################
+    # HIGHLY EXPERIMENTAL CODE
+    # NEED TESTING
+    if args.map:
+        map_callback()
+
+    if args.map_file != None: 
+        load_map(args.map_file)
+    ##############################
 
     points = [
         (3 * width // 8, (height // 2) + 30),
@@ -745,5 +815,6 @@ finally:
     del encoder_mr
     # GPIO.cleanup()
     # video.close()
+    save_map()
     end_write()
     end_record()
