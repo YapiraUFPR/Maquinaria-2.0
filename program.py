@@ -93,10 +93,10 @@ csv_file = None
 
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
-MIN_AREA = 600
+MIN_AREA = 10000 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 1200
+MIN_AREA_TRACK = 15000
 
 MAX_CONTOUR_VERTICES = 40
 
