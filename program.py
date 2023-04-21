@@ -96,7 +96,7 @@ csv_file = None
 MIN_AREA = 5000 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 11100
+MIN_AREA_TRACK = 9000
 
 MAX_CONTOUR_VERTICES = 40
 
@@ -154,7 +154,7 @@ STATIC_FRICTION_COEFFICIENT = 1.7325 # TO BE CALCULATED
 MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([110, 110, 35])
+lower_bgr_values = np.array([100, 100, 33])
 # lower_bgr_values = np.array([120, 120, 45])
 upper_bgr_values = np.array([255, 255, 255])
 
@@ -505,7 +505,9 @@ def process_frame(image_input, last_res_v):
     # print(expected_x, line)
     # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
 
-    if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
+    if (line) and (not lost):
+    # if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
+        
         # print(line)
         # error:= The difference between the center of the image and the center of the line
         error = new_error
@@ -528,9 +530,9 @@ def process_frame(image_input, last_res_v):
             else:
                 linear = LINEAR_SPEED
 
-        if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
-            linear = LINEAR_SPEED_ON_LOSS
-            after_loss_count += 1
+        # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
+        #     linear = LINEAR_SPEED_ON_LOSS
+        #     after_loss_count += 1
 
         just_seen_line = True
 
@@ -690,7 +692,7 @@ def process_frame(image_input, last_res_v):
                 f"http://{ip_addr}:5000/upload", data=imdata.tobytes()
             )  # send image to webserver
 
-        if should_record and frame_count % RECORD_PERIOD:
+        if should_record and (frame_count % RECORD_PERIOD) == 0:
             record_frames.append(output_frame)
 
     # global encoder_ml
