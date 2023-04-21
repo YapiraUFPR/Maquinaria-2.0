@@ -122,7 +122,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 20 / 100
+KP = 21 / 100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -154,7 +154,8 @@ STATIC_FRICTION_COEFFICIENT = 1.7325 # TO BE CALCULATED
 MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([110, 110, 35])
+# lower_bgr_values = np.array([110, 110, 35])
+lower_bgr_values = np.array([130, 130, 50])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
