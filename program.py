@@ -489,9 +489,7 @@ def process_frame(image_input, last_res_v):
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
     output = image
-    line = get_contour_data(
-        mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
-    )
+    line = get_contour_data(mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx)
     # also get the side in which the track mark "is"
 
     x = None
@@ -500,7 +498,7 @@ def process_frame(image_input, last_res_v):
         x = line['x'] if line['is_crossing'] else line['expected_x']
         new_error = x - cx
     else:
-        new_error = 0
+        new_error = None
         # lost = True
 
     # print(expected_x, line)
@@ -509,18 +507,15 @@ def process_frame(image_input, last_res_v):
     # if (line) and (not lost):
     #if (line)
 
-    if (line) and ((not lost) or 
-        (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
-        
-        # print(line)
+    if (line): 
+        # if ((not lost) or (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
         # error:= The difference between the center of the image and the center of the line
         error = new_error
 
-        if lost:
-            after_loss_count = 0
+        # if lost:
+        #     after_loss_count = 0
 
         lost = False
-
         
         res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
         if should_map:
@@ -539,10 +534,10 @@ def process_frame(image_input, last_res_v):
         #     after_loss_count += 1
 
         just_seen_line = True
-
+        #error = new_error
     else:
-        if new_error:
-            debug_str2 = f"last={error}| new={new_error}"
+        # if new_error:
+        debug_str2 = f"last={error}| new={new_error}"
         # print("LOST", end=". ")
         lost = True
         # There is no line in the image.
