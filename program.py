@@ -93,12 +93,12 @@ csv_file = None
 
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
-MIN_AREA = 400
+MIN_AREA = 600
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 900
+MIN_AREA_TRACK = 1200
 
-MAX_CONTOUR_VERTICES = 50
+MAX_CONTOUR_VERTICES = 40
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
@@ -122,7 +122,7 @@ MIN_SPEED = 7
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 23 / 100
+KP = 20 / 100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -162,6 +162,9 @@ lower_hsv_values = np.array([79, 0, 113])
 upper_hsv_values = np.array([120, 170, 255])
 
 
+
+RECORD_PERIOD = 4
+
 def crop_size(height, width):
     """
     Get the measures to crop the image
@@ -174,7 +177,7 @@ def crop_size(height, width):
     # return (3*height//5, height, 0, width)
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
-    return (3 * height // 5, 4 * height // 5, 0, width)
+    return (2 * height // 5, 4 * height // 5, 0, width)
 
 
 def show_callback():
@@ -219,13 +222,12 @@ def end_record():
     global should_record
     global record_frames
     global shape
-    record_shape = (shape[0], shape[1]*2)
     if should_record:
         writer = cv2.VideoWriter(
             f"./outputs/pov-{datetime.now().minute}.mp4",
             cv2.VideoWriter_fourcc(*"mp4v"),
             30,
-            record_shape,
+            shape,
         )
         print(len(record_frames))
         for frame in record_frames:
@@ -435,6 +437,8 @@ def get_contour_data(mask, out, previous_pos):
     return chosen_line
 
 
+frame_count = 0
+
 def process_frame(image_input, last_res_v):
     """
     According to an image 'image_input', determine the speed of the robot
@@ -458,6 +462,10 @@ def process_frame(image_input, last_res_v):
 
     global encoder_ml
     global encoder_mr
+
+    global frame_count
+
+    frame_count += 1
 
     height, width, _ = image_input.shape
     image = image_input
@@ -667,6 +675,9 @@ def process_frame(image_input, last_res_v):
         out_mask = np.zeros_like(output)
         out_mask[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop] =  cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         output_frame = np.append(output, out_mask, axis=1)
+        global shape
+        out_h, out_w, _ = output_frame.shape
+        shape = (out_w, out_h)
 
         if should_show:
             # Print the image for 5milis, then resume execution
@@ -678,7 +689,7 @@ def process_frame(image_input, last_res_v):
                 f"http://{ip_addr}:5000/upload", data=imdata.tobytes()
             )  # send image to webserver
 
-        if should_record:
+        if should_record and frame_count % RECORD_PERIOD:
             record_frames.append(output_frame)
 
     # global encoder_ml
@@ -732,7 +743,7 @@ def main():
 
     # set resize settings
     height, width, _ = image.shape
-    shape = (width, height)
+    # shape = (width, height)
     error = width // (RESIZE_SIZE * 2)
     print(image.shape)
     print(">>", end="")
