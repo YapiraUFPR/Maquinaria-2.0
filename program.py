@@ -150,7 +150,7 @@ RESIZE_SIZE = 4
 # mapping calculations
 WHEELS_DISTANCE = 123 # in milimeters
 GRAVITY = 9.8
-STATIC_FRICTION_COEFFICIENT = 0.5 # TO BE CALCULATED
+STATIC_FRICTION_COEFFICIENT = 1.7325 # TO BE CALCULATED
 MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
@@ -218,13 +218,14 @@ def end_write():
 def end_record():
     global should_record
     global record_frames
+    global shape
+    record_shape = (shape[0], shape[1]*2)
     if should_record:
-        h, w, _ = record_frames[0].shape
         writer = cv2.VideoWriter(
             f"./outputs/pov-{datetime.now().minute}.mp4",
             cv2.VideoWriter_fourcc(*"mp4v"),
             30,
-            (h, w),
+            record_shape,
         )
         print(len(record_frames))
         for frame in record_frames:
@@ -800,7 +801,6 @@ def main():
         except TimeoutError:
             pass
             
-        time.sleep(0.1)
 
     print("Exiting...")
 
