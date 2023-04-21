@@ -29,7 +29,7 @@ parser.add_argument("-r", "--record", action="store_true", help="Record masked i
 parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
 parser.add_argument("-o", "--output", metavar="address", action="store",help="Show output image to ip address")
 parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
-parser.add_argument("-m", "--map", metavar="store_true", help="Create a map of the track")
+parser.add_argument("-m", "--map", action="store_true", help="Create a map of the track")
 parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
 args = parser.parse_args()
 
@@ -55,6 +55,10 @@ encoder_a_ml = 19
 encoder_b_ml = 21
 encoder_a_mr = 33
 encoder_b_mr = 35
+
+global encoder_ml
+global encoder_mr
+
 encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
 encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
 
@@ -99,8 +103,10 @@ MAX_CONTOUR_VERTICES = 50
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 40.0
-LINEAR_SPEED_ON_LOSS = 5.0
-LINEAR_SPEED_ON_CURVE = 6.5
+#LINEAR_SPEED_ON_LOSS = 5.0
+#LINEAR_SPEED_ON_CURVE = 6.5
+LINEAR_SPEED_ON_LOSS = 20
+LINEAR_SPEED_ON_CURVE = 20
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -293,6 +299,8 @@ def get_track_radius():
     """
     Calculate track radius using encoder measures
     """
+    global encoder_ml
+    global encoder_mr
     if (encoder_mr.distance == encoder_ml.distance):
         return float('inf')
 
@@ -375,7 +383,7 @@ def get_contour_data(mask, out, previous_pos):
                 if x < 0 or x > width:
                     x = line["x"]
 
-                print(vy, y, y1)
+                # print(vy, y, y1)
 
                 # check if contour is a crossing
                 cx,cy,cw,ch = cv2.boundingRect(contour)
@@ -447,6 +455,9 @@ def process_frame(image_input, last_res_v):
     global should_use_map
     global map
 
+    global encoder_ml
+    global encoder_mr
+
     height, width, _ = image_input.shape
     image = image_input
 
@@ -485,7 +496,7 @@ def process_frame(image_input, last_res_v):
     # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
 
     if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
-        print(line)
+        # print(line)
         # error:= The difference between the center of the image and the center of the line
         error = new_error
 
@@ -669,8 +680,8 @@ def process_frame(image_input, last_res_v):
         if should_record:
             record_frames.append(output_frame)
 
-    global encoder_ml
-    global encoder_mr
+    # global encoder_ml
+    # global encoder_mr
     encoder_ml.read_encoders()
     encoder_mr.read_encoders()
     if should_write:
@@ -752,8 +763,8 @@ def main():
     if args.map:
         map_callback()
 
-    if args.map_file != None: 
-        load_map(args.map_file)
+    if args.usemap != None: 
+        load_map(args.usemap)
     ##############################
 
     points = [
@@ -782,7 +793,7 @@ def main():
 
             fps_count += 1
             if time.time() - ts >= 1:
-                print(fps_count)
+                print(f"FPS: {fps_count}")
                 fps_count = 0
                 ts = time.time()
 

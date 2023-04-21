@@ -27,6 +27,7 @@ class Encoder:
         self.calc_rpm = 0
         self.rotations = 0
         self.radius_wheel = 0
+        self.distance = 0
 
     
     def read_encoders(self):
