@@ -78,7 +78,7 @@ should_stop = False
 should_write = False
 should_map = False
 should_use_map = False
-map = {}
+track_map = {}
 current_strech = 0
 record_frames = []
 shape = ()
@@ -227,7 +227,7 @@ def end_record():
         writer = cv2.VideoWriter(
             f"./outputs/pov-{datetime.now().minute}.mp4",
             cv2.VideoWriter_fourcc(*"mp4v"),
-            30,
+            10,
             shape,
         )
         print(len(record_frames))
@@ -255,18 +255,18 @@ def map_callback():
 
 def save_map():
     global should_map
-    global map
+    global track_map
     if should_map:
         with open(f'{datetime.now()}_map.json', 'w') as output_file:
-            output_file.write(json.dumps(map))
+            output_file.write(json.dumps(track_map))
 
 def load_map(filename):
     global should_use_map
-    global map 
+    global track_map 
     should_use_map = True
     print("LOADING MAP")
     map_file = open(filename, "r")
-    map = json.load(map_file)
+    track_map = json.load(map_file)
 
 def start_follower_callback(request, response):
     """
@@ -459,7 +459,7 @@ def process_frame(image_input, last_res_v):
     global after_loss_count
     global should_map
     global should_use_map
-    global map
+    global track_map
 
     global encoder_ml
     global encoder_mr
@@ -501,12 +501,16 @@ def process_frame(image_input, last_res_v):
         new_error = x - cx
     else:
         new_error = 0
+        # lost = True
 
     # print(expected_x, line)
     # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
 
-    if (line) and (not lost):
-    # if (line) and ((not lost) or (abs(new_error - error) < LOSS_THRH)):
+    # if (line) and (not lost):
+    #if (line)
+
+    if (line) and ((not lost) or 
+        (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
         
         # print(line)
         # error:= The difference between the center of the image and the center of the line
@@ -520,10 +524,10 @@ def process_frame(image_input, last_res_v):
         
         res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
         if should_map:
-            map[res_dist//MAP_INTERVAL] = get_max_speed()
+            track_map[res_dist//MAP_INTERVAL] = get_max_speed()
 
         if should_use_map:
-            linear = map[res_dist//MAP_INTERVAL] if res_dist in map else last_res_v["linear"]
+            linear = track_map[res_dist//MAP_INTERVAL] if res_dist in track_map else last_res_v["linear"]
         else:
             if abs(error) > CURVE_ERROR_THRH:
                 linear = LINEAR_SPEED_ON_CURVE
@@ -566,35 +570,7 @@ def process_frame(image_input, last_res_v):
         "linear": linear,
     }
 
-    left_should_rampup = False
-    right_should_rampup = False
-
-    if (last_res_v["left"] == res_v["left"]) and (
-        last_res_v["right"] == res_v["right"]
-    ):
-        no_movement_count += 1
-    else:
-        no_movement_count = 0
-
-    if no_movement_count > NO_MOVEMENT_FRAMES:
-        left_should_rampup = True
-        right_should_rampup = True
-        no_movement_count = 0
-
-    if (last_res_v["left"] <= MIN_SPEED) and (res_v["left"] > last_res_v["left"]):
-        left_should_rampup = True
-
-    if (last_res_v["right"] <= MIN_SPEED) and (res_v["right"] > last_res_v["right"]):
-        right_should_rampup = True
-
     if should_move:
-    #     # if left_should_rampup:
-    #     #     motor_left.run(90)
-    #     # if right_should_rampup:
-    #     #     motor_right.run(90)
-    #     # if left_should_rampup or right_should_rampup:
-    #     #     time.sleep(0.008)
-
         motor_left.run(res_v["left"])
         motor_right.run(res_v["right"])
 
@@ -614,10 +590,6 @@ def process_frame(image_input, last_res_v):
     debug_str = f"A: {int(angular)}|L: {linear}|E: {error}|"
     debug_str += f"lft{res_v['left']}|rgt{res_v['right']}|"
     debug_str3 = f"cVert:{line['len']}|cArea:{line['area']}" if line else ""
-    # if left_should_rampup:
-    #     debug_str += "(rmp)"
-    # if right_should_rampup:
-    #     debug_str += "(rmp)"
 
     if should_record or should_show:
         text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 2, 2)
@@ -636,33 +608,9 @@ def process_frame(image_input, last_res_v):
         # center of the image
         cv2.circle(output, (cx, crop_h_start + (height // 2)), 1, (75, 0, 130), 1)
         # cv2.putText(output, now, (0, text_h - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (50, 255, 255), 1)
-        cv2.putText(
-            output,
-            debug_str,
-            (0, text_h),
-            cv2.FONT_HERSHEY_PLAIN,
-            1,
-            (0, 255, 100),
-            1,
-        )
-        cv2.putText(
-            output,
-            debug_str2,
-            (0, text_h + 15),
-            cv2.FONT_HERSHEY_PLAIN,
-            1,
-            (0, 255, 100),
-            1,
-        )
-        cv2.putText(
-            output,
-            debug_str3,
-            (0, text_h + 30),
-            cv2.FONT_HERSHEY_PLAIN,
-            1,
-            (0, 255, 100),
-            1,
-        )
+        cv2.putText(output,debug_str,(0, text_h),cv2.FONT_HERSHEY_PLAIN,1,(0, 255, 100),1,)
+        cv2.putText(output,debug_str2,(0, text_h + 15), cv2.FONT_HERSHEY_PLAIN,1,(0, 255, 100),1,)
+        cv2.putText(output,debug_str3,(0, text_h + 30),cv2.FONT_HERSHEY_PLAIN,1,(0, 255, 100),1,)
 
         # plot the rectangle around contour center
         if x:
