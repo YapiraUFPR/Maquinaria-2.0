@@ -93,10 +93,10 @@ csv_file = None
 
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
-MIN_AREA = 10000 
+MIN_AREA = 5000 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 15000
+MIN_AREA_TRACK = 11100
 
 MAX_CONTOUR_VERTICES = 40
 
@@ -154,8 +154,8 @@ STATIC_FRICTION_COEFFICIENT = 1.7325 # TO BE CALCULATED
 MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
-# lower_bgr_values = np.array([110, 110, 35])
-lower_bgr_values = np.array([130, 130, 50])
+lower_bgr_values = np.array([110, 110, 35])
+# lower_bgr_values = np.array([120, 120, 45])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
@@ -164,7 +164,7 @@ upper_hsv_values = np.array([120, 170, 255])
 
 
 
-RECORD_PERIOD = 4
+RECORD_PERIOD = 8
 
 def crop_size(height, width):
     """
@@ -178,7 +178,7 @@ def crop_size(height, width):
     # return (3*height//5, height, 0, width)
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
-    return (2 * height // 5, 4 * height // 5, 0, width)
+    return (3 * height // 5, 5 * height // 5, 0, width)
 
 
 def show_callback():
