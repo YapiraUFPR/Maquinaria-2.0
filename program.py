@@ -372,10 +372,8 @@ def get_contour_data(mask, out, previous_pos):
 
                 y = line["y"] - 20
                 x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
-                if x < 0:
-                    x = 1
-                if x > width:
-                    x = width
+                if x < 0 or x > width:
+                    x = line["x"]
 
                 print(vy, y, y1)
 
