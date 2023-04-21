@@ -1,4 +1,5 @@
 import cv2 
+import time
 
 video = cv2.VideoCapture(0)
 video.set(cv2.CAP_PROP_FPS, 90)
@@ -18,4 +19,3 @@ while retval:
         print(f"FPS: {fps_count}")
         fps_count = 0
         ts = time.time()
-

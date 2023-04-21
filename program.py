@@ -9,7 +9,7 @@ __author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique and Isadora Bota
 import numpy as np
 import cv2
 import signal
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 from libs.DC_Motor_pi import DC_Motor
 from libs.encoder import Encoder
 import requests
@@ -822,7 +822,7 @@ finally:
     del motor_left
     del encoder_ml
     del encoder_mr
-    # GPIO.cleanup()
+    GPIO.cleanup()
     # video.close()
     save_map()
     end_write()
