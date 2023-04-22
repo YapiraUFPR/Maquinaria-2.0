@@ -1,5 +1,6 @@
 import RPi.GPIO as GPIO
 import time
+import math
 
 class Encoder:
     def __init__(self, encoder_a, encoder_b, steps, radius_wheel):
@@ -64,7 +65,7 @@ class Encoder:
         self.frequency = 1/self.period
         self.calc_rpm = self.frequency * 60 // self.steps
         self.rotations = self.total_pulse_counter // self.steps 
-        self.distance = ((2 * 3.14 * self.radius_wheel) / self.steps) * self.pulse_counter
+        self.distance = ((2 * math.pi * self.radius_wheel) / self.steps) * self.pulse_counter
         
     def __del__(self):
         GPIO.cleanup()

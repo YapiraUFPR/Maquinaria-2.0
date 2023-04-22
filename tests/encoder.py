@@ -16,8 +16,8 @@ pwm_pin = 18
 motor = DC_Motor(clockwise_pin, counterclockwise_pin, pwm_pin)
 
 # encoder pin setup
-encoder_a = 19
-encoder_b = 21
+encoder_a = 33
+encoder_b = 35
 GPIO.setup(encoder_a, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(encoder_b, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
@@ -44,15 +44,14 @@ while i < 100:
     current_a_state = GPIO.input(encoder_a)
 
 
-    if wave_state == 0:
-        if current_a_state == 1 and last_a_state == 0:
-            period = (time.time_ns() / 1000) - pstart
-            pstart = time.time_ns() / 1000
-            wave_state = 1
+    
+    # if current_a_state == 1 and last_a_state == 0:
+    #     period = (time.time_ns() / 1000) - pstart
+    #     pstart = time.time_ns() / 1000
 
-    elif wave_state == 1:
-        if current_a_state == 0 and last_a_state == 1:
-            wave_state = 0
+
+    # if current_a_state == 0 and last_a_state == 1:
+    #     wave_state = 0
 
     # check if encoder detected a turn
     if current_a_state != last_a_state and current_a_state == 1:
@@ -78,7 +77,7 @@ while i < 100:
     rotations = total_pulse_counter // LINE_NUMBER
 
    
-    print(f"Speed: {i}, RPM: {calc_rpm}, Periodo: {period}, Frequencia: {1/period}, Dir: {direc}, M_Direc: {current_dir}")
+    print(f"Speed: {i}, RPM: {calc_rpm}, M_Direc: {current_dir}")
 
     # increment motor speed each second
     if (curr_ts - last_ts) > 1.0:

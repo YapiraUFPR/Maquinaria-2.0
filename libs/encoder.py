@@ -1,5 +1,6 @@
 import RPi.GPIO as GPIO
 import time
+import math
 
 class Encoder:
     def __init__(self, encoder_a, encoder_b, steps, radius_wheel):
@@ -16,7 +17,7 @@ class Encoder:
         self.last_a_state = GPIO.input(encoder_a)
         self.current_dir = ""
         self.pulse_counter = 0
-        self.total_pulse_counter = 0
+        self.modular_pulse_counter = 0
         self.period = 1
         self.period_start = 0
         self.wave_state = 0
@@ -26,7 +27,6 @@ class Encoder:
         self.frequency = 0
         self.calc_rpm = 0
         self.rotations = 0
-        self.radius_wheel = 0
         self.distance = 0
 
     
@@ -48,24 +48,26 @@ class Encoder:
 
         # check if encoder detected a turn
         if current_a_state != self.last_a_state and current_a_state == 1:
-            self.total_pulse_counter += 1
+            self.modular_pulse_counter += 1
 
             b_state = GPIO.input(self.encoder_b)
             # check direction
             if b_state != current_a_state:
-                self.current_dir = "anti-horário"
+                self.current_dir = 1
                 self.pulse_counter += 1
             else:
-                self.current_dir = "horário"
+                self.current_dir = -1
                 self.pulse_counter -= 1
-
         self.last_a_state = current_a_state
 
         # some rotory encoder calculations
         self.frequency = 1/self.period
         self.calc_rpm = self.frequency * 60 // self.steps
-        self.rotations = self.total_pulse_counter // self.steps 
-        self.distance = ((2 * 3.14 * self.radius_wheel) / self.steps) * self.pulse_counter
+        self.rotations = self.modular_pulse_counter // self.steps 
+        self.distance = ((2 * math.pi * self.radius_wheel) / self.steps) * self.modular_pulse_counter * self.current_dir
+
+        if self.modular_pulse_counter >= self.steps:
+            self.modular_pulse_counter = 0
 
     # def __del__(self):
     #     GPIO.cleanup()

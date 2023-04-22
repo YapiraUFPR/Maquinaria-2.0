@@ -48,13 +48,13 @@ motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 # encoder values
 STEPS_NUMBER = 7
 RPM = 800
-RADIUS_WHEEL = 16 # millimeters
+RADIUS_WHEEL = 16.5 # millimeters
 
 # encoder pin setup
-encoder_a_ml = 19
-encoder_b_ml = 21
-encoder_a_mr = 33
-encoder_b_mr = 35
+encoder_a_ml = 33
+encoder_b_ml = 35
+encoder_a_mr = 21
+encoder_b_mr = 19
 
 global encoder_ml
 global encoder_mr
@@ -68,6 +68,7 @@ init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
 error = 0
+total_distance = 0
 no_movement_count = 0
 just_seen_line = False
 
@@ -638,12 +639,11 @@ def process_frame(image_input, last_res_v):
         if should_record and (frame_count % RECORD_PERIOD) == 0:
             record_frames.append(output_frame)
 
-    # global encoder_ml
-    # global encoder_mr
+    global total_distance
     encoder_ml.read_encoders()
     encoder_mr.read_encoders()
     if should_write:
-        result_distance = (encoder_mr.distance + encoder_ml.distance) / 2
+        result_distance += (encoder_mr.distance + encoder_ml.distance) / 2
         data = [
             datetime.now().second,
             result_distance,
