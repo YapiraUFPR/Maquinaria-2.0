@@ -15,7 +15,7 @@ class Encoder:
         
         # init state vars
         self.last_a_state = GPIO.input(encoder_a)
-        self.current_dir = ""
+        self.current_dir = 1
         self.pulse_counter = 0
         self.modular_pulse_counter = 0
         self.period = 1
@@ -28,13 +28,20 @@ class Encoder:
         self.calc_rpm = 0
         self.rotations = 0
         self.distance = 0
+        self.should_read = True
+        GPIO.add_event_detect(encoder_a, GPIO.RISING, callback=self.read_encoders_callback)
 
     
-    def read_encoders(self):
-    # this is a highly experimental function
-    # this should be able to detect encoder readings according to encoder_test.py
+    def read_encoders_callback(self, channel):
+        print("callback")
 
-        current_a_state = GPIO.input(self.encoder_a)
+        if not self.should_read:
+            return
+
+        # this is a highly experimental function
+        # this should be able to detect encoder readings according to encoder_test.py
+
+        current_a_state = 1
 
         # calculate frequency
         if self.wave_state == 0:
@@ -60,6 +67,8 @@ class Encoder:
                 self.pulse_counter -= 1
         self.last_a_state = current_a_state
 
+    #def calculate_encoder_values(self):
+
         # some rotory encoder calculations
         self.frequency = 1/self.period
         self.calc_rpm = self.frequency * 60 // self.steps
@@ -69,5 +78,7 @@ class Encoder:
         if self.modular_pulse_counter >= self.steps:
             self.modular_pulse_counter = 0
 
-    # def __del__(self):
-    #     GPIO.cleanup()
+    def __del__(self):
+        GPIO.remove_event_detect(self.encoder_a)
+        print("deleted")
+        

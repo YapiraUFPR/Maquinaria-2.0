@@ -640,13 +640,13 @@ def process_frame(image_input, last_res_v):
             record_frames.append(output_frame)
 
     global total_distance
-    encoder_ml.read_encoders()
-    encoder_mr.read_encoders()
+    # encoder_ml.read_encoders()
+    # encoder_mr.read_encoders()
     if should_write:
-        result_distance += (encoder_mr.distance + encoder_ml.distance) / 2
+        total_distance += (encoder_mr.distance + encoder_ml.distance) / 2
         data = [
             datetime.now().second,
-            result_distance,
+            total_distance,
             encoder_mr.distance,
             encoder_ml.distance,
             linear,
@@ -775,12 +775,17 @@ except KeyboardInterrupt:
 #     print(e)
 
 finally:
+    encoder_ml.should_read = False
+    encoder_mr.should_read = False
     del motor_right
     del motor_left
-    del encoder_ml
-    del encoder_mr
+    # del encoder_ml
+    # del encoder_mr
     GPIO.cleanup()
     # video.close()
     save_map()
     end_write()
     end_record()
+    print("Ended successfully.")
+
+
