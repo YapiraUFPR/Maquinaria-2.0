@@ -38,17 +38,6 @@ class Encoder:
         # this should be able to detect encoder readings according to encoder_test.py
 
         current_a_state = 1
-
-        # # calculate frequency
-        # if self.wave_state == 0:
-        #     if current_a_state == 1 and self.last_a_state == 0:
-        #         self.period = (time.time_ns() / 1000) - self.period_start
-        #         self.period_start = time.time_ns() / 1000
-        #         self.wave_state = 1
-        # elif self.wave_state == 1:
-        #     if current_a_state == 0 and self.last_a_state == 1:
-        #         self.wave_state = 0
-
         # check if encoder detected a turn
         self.modular_pulse_counter += 1
 
@@ -56,11 +45,8 @@ class Encoder:
         # check direction
         if b_state != current_a_state:
             self.current_dir = 1
-            self.pulse_counter += 1
         else:
             self.current_dir = -1
-            self.pulse_counter -= 1
-        self.last_a_state = current_a_state
 
     #def calculate_encoder_values(self):
 

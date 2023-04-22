@@ -47,7 +47,8 @@ motor_left = DC_Motor(clockwise_pin_1, counterclockwise_pin_1, pwm_pin_1)
 motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 
 # encoder values
-STEPS_NUMBER = 7
+# STEPS_NUMBER = 7
+STEPS_NUMBER = 7 * 20
 RPM = 800
 RADIUS_WHEEL = 1.65 # centimeters
 # RADIUS_WHEEL = 16.5 # millimeters
@@ -475,6 +476,7 @@ def process_frame(image_input, last_res_v):
     global should_map
     global should_use_map
     global track_map
+    global total_distance
 
     global encoder_ml
     global encoder_mr
@@ -659,11 +661,10 @@ def process_frame(image_input, last_res_v):
         if should_record and (frame_count % RECORD_PERIOD) == 0:
             record_frames.append(output_frame)
 
-    global total_distance
     # encoder_ml.read_encoders()
     # encoder_mr.read_encoders()
     if should_write:
-        total_distance += (encoder_mr.distance + encoder_ml.distance) / 2
+        total_distance = (encoder_mr.distance + encoder_ml.distance) / 2
         data = [
             datetime.now().second,
             round(total_distance, 3),
