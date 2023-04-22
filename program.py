@@ -110,8 +110,9 @@ MAX_CONTOUR_VERTICES = 40
 LINEAR_SPEED = 60.0
 #LINEAR_SPEED_ON_LOSS = 5.0
 #LINEAR_SPEED_ON_CURVE = 6.5
-LINEAR_SPEED_ON_LOSS = 30
 LINEAR_SPEED_ON_CURVE = 40
+LINEAR_SPEED_ON_LOSS = 30
+KP = 22 / 100
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -127,7 +128,6 @@ after_loss_count = FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS + 1
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 23 / 100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -663,8 +663,8 @@ def process_frame(image_input, last_res_v):
 
     # encoder_ml.read_encoders()
     # encoder_mr.read_encoders()
+    total_distance = (encoder_mr.distance + encoder_ml.distance) / 2
     if should_write:
-        total_distance = (encoder_mr.distance + encoder_ml.distance) / 2
         data = [
             datetime.now().second,
             round(total_distance, 3),
