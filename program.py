@@ -48,7 +48,8 @@ motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 # encoder values
 STEPS_NUMBER = 7
 RPM = 800
-RADIUS_WHEEL = 16.5 # millimeters
+RADIUS_WHEEL = 1.65 # centimeters
+# RADIUS_WHEEL = 16.5 # millimeters
 
 # encoder pin setup
 encoder_a_ml = 33
@@ -646,9 +647,9 @@ def process_frame(image_input, last_res_v):
         total_distance += (encoder_mr.distance + encoder_ml.distance) / 2
         data = [
             datetime.now().second,
-            total_distance,
-            encoder_mr.distance,
-            encoder_ml.distance,
+            round(total_distance, 3),
+            round(encoder_mr.distance, 3),
+            round(encoder_ml.distance, 3),
             linear,
             angular,
             error,
