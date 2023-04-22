@@ -29,6 +29,7 @@ parser.add_argument("-r", "--record", action="store_true", help="Record masked i
 parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
 parser.add_argument("-o", "--output", metavar="address", action="store",help="Show output image to ip address")
 parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
+parser.add_argument("-d", "--distance", metavar="store_true", help="Stop the robot in `DISTANCE` centimetres")
 parser.add_argument("-m", "--map", action="store_true", help="Create a map of the track")
 parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
 args = parser.parse_args()
@@ -77,6 +78,7 @@ should_move = False
 should_record = False
 should_show = False
 should_stop = False
+should_stop_for_distance = False
 should_write = False
 should_map = False
 should_use_map = False
@@ -246,6 +248,15 @@ def stop_callback():
     runtime = timedelta(seconds=runtime)
 
     should_stop = True
+    print("WILL STOP")
+    print(">>", end="")
+
+def stop_for_distancecallback():
+    global should_stop_for_distance
+    global track_length
+    track_length = int(args.distance)
+
+    should_stop_for_distance = True
     print("WILL STOP")
     print(">>", end="")
 
@@ -454,6 +465,8 @@ def process_frame(image_input, last_res_v):
     global just_seen_right_mark
     global should_move
     global should_stop
+    global should_stop_for_distance
+    global track_length
     global right_mark_count
     global init_time
     global lost
@@ -556,6 +569,12 @@ def process_frame(image_input, last_res_v):
         if (datetime.now() - init_time_iso) >= runtime:
             should_move = False
             print(f"STOPPED AT {datetime.now()}")
+
+    # check for distance
+    elif should_move and should_stop_for_distance:
+        if (total_distance) >= track_length:
+            should_move = False
+            print(f"STOPPED AT {total_distance} centimetres.")
 
     # Determine the speed to turn and get the line in the center of the camera.
     angular = float(error) * -KP
@@ -712,7 +731,7 @@ def main():
     if args.write:  # should write values to csv
         write_callback()
 
-    if args.stop != None:  # should show image
+    if args.stop != None:  # should stop
         stop_callback()
 
 
