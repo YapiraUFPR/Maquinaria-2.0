@@ -790,6 +790,7 @@ except KeyboardInterrupt:
     now = datetime.now()
     print(now)
     print(f"TOTAL TIME {now - init_time_iso}")
+    print(f"TOTAL distance {total_distance}")
     print("\nExiting...")
 
 # except Exception as e:
