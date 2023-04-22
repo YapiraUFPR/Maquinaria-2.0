@@ -735,6 +735,9 @@ def main():
     if args.stop != None:  # should stop
         stop_callback()
 
+    if args.distance != None:  # should stop
+        stop_for_distancecallback()
+
 
     ##############################
     # HIGHLY EXPERIMENTAL CODE
