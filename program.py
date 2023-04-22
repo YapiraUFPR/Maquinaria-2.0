@@ -52,8 +52,8 @@ RADIUS_WHEEL = 1.65 # centimeters
 # RADIUS_WHEEL = 16.5 # millimeters
 
 # encoder pin setup
-encoder_a_ml = 33
-encoder_b_ml = 35
+encoder_a_ml = 35
+encoder_b_ml = 33
 encoder_a_mr = 19
 encoder_b_mr = 21
 
