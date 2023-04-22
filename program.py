@@ -53,8 +53,8 @@ RADIUS_WHEEL = 16.5 # millimeters
 # encoder pin setup
 encoder_a_ml = 33
 encoder_b_ml = 35
-encoder_a_mr = 21
-encoder_b_mr = 19
+encoder_a_mr = 19
+encoder_b_mr = 21
 
 global encoder_ml
 global encoder_mr
@@ -775,17 +775,16 @@ except KeyboardInterrupt:
 #     print(e)
 
 finally:
-    encoder_ml.should_read = False
-    encoder_mr.should_read = False
     del motor_right
     del motor_left
-    # del encoder_ml
     # del encoder_mr
-    GPIO.cleanup()
+    # del encoder_ml
     # video.close()
     save_map()
     end_write()
     end_record()
     print("Ended successfully.")
-
+    GPIO.remove_event_detect(encoder_a_ml)
+    GPIO.remove_event_detect(encoder_a_mr)
+    GPIO.cleanup()
 

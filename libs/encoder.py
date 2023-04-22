@@ -2,6 +2,7 @@ import RPi.GPIO as GPIO
 import time
 import math
 
+
 class Encoder:
     def __init__(self, encoder_a, encoder_b, steps, radius_wheel):
         # init pins
@@ -28,43 +29,37 @@ class Encoder:
         self.calc_rpm = 0
         self.rotations = 0
         self.distance = 0
-        self.should_read = True
+        should_read = True
         GPIO.add_event_detect(encoder_a, GPIO.RISING, callback=self.read_encoders_callback)
 
     
     def read_encoders_callback(self, channel):
-        print("callback")
-
-        if not self.should_read:
-            return
-
         # this is a highly experimental function
         # this should be able to detect encoder readings according to encoder_test.py
 
         current_a_state = 1
 
-        # calculate frequency
-        if self.wave_state == 0:
-            if current_a_state == 1 and self.last_a_state == 0:
-                self.period = (time.time_ns() / 1000) - self.period_start
-                self.period_start = time.time_ns() / 1000
-                self.wave_state = 1
-        elif self.wave_state == 1:
-            if current_a_state == 0 and self.last_a_state == 1:
-                self.wave_state = 0
+        # # calculate frequency
+        # if self.wave_state == 0:
+        #     if current_a_state == 1 and self.last_a_state == 0:
+        #         self.period = (time.time_ns() / 1000) - self.period_start
+        #         self.period_start = time.time_ns() / 1000
+        #         self.wave_state = 1
+        # elif self.wave_state == 1:
+        #     if current_a_state == 0 and self.last_a_state == 1:
+        #         self.wave_state = 0
 
         # check if encoder detected a turn
-        if current_a_state != self.last_a_state and current_a_state == 1:
-            self.modular_pulse_counter += 1
+        self.modular_pulse_counter += 1
 
-            b_state = GPIO.input(self.encoder_b)
-            # check direction
-            if b_state != current_a_state:
-                self.current_dir = 1
-                self.pulse_counter += 1
-            else:
-                self.current_dir = -1
-                self.pulse_counter -= 1
+        b_state = GPIO.input(self.encoder_b)
+        # check direction
+        if b_state != current_a_state:
+            self.current_dir = 1
+            self.pulse_counter += 1
+        else:
+            self.current_dir = -1
+            self.pulse_counter -= 1
         self.last_a_state = current_a_state
 
     #def calculate_encoder_values(self):
@@ -73,12 +68,14 @@ class Encoder:
         self.frequency = 1/self.period
         self.calc_rpm = self.frequency * 60 // self.steps
         self.rotations = self.modular_pulse_counter // self.steps 
-        self.distance = ((2 * math.pi * self.radius_wheel) / self.steps) * self.modular_pulse_counter * self.current_dir
 
-        if self.modular_pulse_counter >= self.steps:
-            self.modular_pulse_counter = 0
+        self.distance += ((2 * math.pi * self.radius_wheel) / self.steps) * self.current_dir
+        # self.distance = ((2 * math.pi * self.radius_wheel) / self.steps) * self.modular_pulse_counter * self.current_dir
 
-    def __del__(self):
-        GPIO.remove_event_detect(self.encoder_a)
-        print("deleted")
+        # if self.modular_pulse_counter >= self.steps:
+        #     self.modular_pulse_counter = 0
+
+    # def __del__(self):
+    #     GPIO.remove_event_detect(self.encoder_a)
+    #     print("deleted")
         
