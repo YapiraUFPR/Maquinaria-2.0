@@ -96,17 +96,17 @@ csv_file = None
 MIN_AREA = 5000 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 9000
+MIN_AREA_TRACK = 9500
 
 MAX_CONTOUR_VERTICES = 40
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 40.0
+LINEAR_SPEED = 60.0
 #LINEAR_SPEED_ON_LOSS = 5.0
 #LINEAR_SPEED_ON_CURVE = 6.5
-LINEAR_SPEED_ON_LOSS = 20
-LINEAR_SPEED_ON_CURVE = 20
+LINEAR_SPEED_ON_LOSS = 30
+LINEAR_SPEED_ON_CURVE = 40
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -117,12 +117,12 @@ FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS = 10
 after_loss_count = FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS + 1
 
 # mininum speed to keep the robot running without rampup
-MIN_SPEED = 7
+# MIN_SPEED = 7
 
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 26/100
-KP = 21 / 100
+KP = 23 / 100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
