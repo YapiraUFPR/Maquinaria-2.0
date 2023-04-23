@@ -119,7 +119,7 @@ MAX_CONTOUR_VERTICES = 40
 LINEAR_SPEED = 80.0
 LINEAR_SPEED_ON_CURVE = 60
 LINEAR_SPEED_ON_LOSS = 40
-KP = 235 / 1000
+KP = 227 / 1000
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -176,7 +176,7 @@ upper_hsv_values = np.array([120, 170, 255])
 
 
 
-RECORD_PERIOD = 8
+RECORD_PERIOD = 3
 
 def crop_size(height, width):
     """
