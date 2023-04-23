@@ -116,10 +116,10 @@ MAX_CONTOUR_VERTICES = 40
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 60.0
-LINEAR_SPEED_ON_CURVE = 40
+LINEAR_SPEED = 65.0
+LINEAR_SPEED_ON_CURVE = 47
 LINEAR_SPEED_ON_LOSS = 30
-KP = 21 / 100
+KP = 23 / 100
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -605,9 +605,8 @@ def process_frame(image_input, last_res_v):
         if line_sensor_reading:
             print(error<30, should_ignore_mark, read_start_mark)
         if error < 30 and not should_ignore_mark and read_start_mark and line_sensor_reading:
-            should_move = False
             should_stop = True
-            runtime = datetime.now() + timedelta(seconds=2.5)
+            runtime = datetime.now() + timedelta(milliseconds=1500)
             print(f"READ STOP MARK")
         
         if not read_start_mark and line_sensor_reading:
@@ -615,7 +614,7 @@ def process_frame(image_input, last_res_v):
             ignore_mark_countdown = datetime.now()
             print("READ START MARK")
         
-        should_ignore_mark = not (read_start_mark and (datetime.now() - ignore_mark_countdown >= timedelta(seconds=5)))
+        should_ignore_mark = not (read_start_mark and (datetime.now() - ignore_mark_countdown >= timedelta(seconds=17)))
 
     # Determine the speed to turn and get the line in the center of the camera.
     angular = float(error) * -KP
