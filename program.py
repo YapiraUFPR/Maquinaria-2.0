@@ -29,6 +29,7 @@ parser.add_argument("-r", "--record", action="store_true", help="Record masked i
 parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
 parser.add_argument("-o", "--output", metavar="address", action="store",help="Show output image to ip address")
 parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
+parser.add_argument("-l", "--linestop", metavar="store_true", help="Stop by reading the line sensor")
 parser.add_argument("-d", "--distance", metavar="store_true", help="Stop the robot in `DISTANCE` centimetres")
 parser.add_argument("-m", "--map", action="store_true", help="Create a map of the track")
 parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
@@ -65,6 +66,10 @@ global encoder_mr
 encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
 encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
 
+# line sensor pin to read stop mark
+line_sensor_out = 23
+GPIO.setup(line_senor_out, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
 # Global vars. initial values
 runtime = 0  # time until it should stop
 init_time = int(datetime.now().timestamp())
@@ -74,7 +79,11 @@ error = 0
 total_distance = 0
 no_movement_count = 0
 just_seen_line = False
+read_start_mark = False
+ignore_mark_countdown = None
+should_ignore_mark = False
 
+should_stop_for_mark = False
 should_move = False
 should_record = False
 should_show = False
@@ -258,6 +267,13 @@ def stop_for_distancecallback():
     track_length = int(args.distance)
 
     should_stop_for_distance = True
+    print("WILL STOP")
+    print(">>", end="")
+
+def stop_for_mark_callback():
+    global should_stop_for_mark
+    should_stop_for_mark = True
+
     print("WILL STOP")
     print(">>", end="")
 
@@ -566,6 +582,9 @@ def process_frame(image_input, last_res_v):
         linear = LINEAR_SPEED_ON_LOSS
 
     global runtime
+
+    line_sensor_reading = GPIO.input(line_sensor_out)
+    
     # Check for final countdown
     if should_move and should_stop:
         if (datetime.now() - init_time_iso) >= runtime:
@@ -577,6 +596,26 @@ def process_frame(image_input, last_res_v):
         if (total_distance) >= track_length:
             should_move = False
             print(f"STOPPED AT {total_distance} centimetres.")
+
+    # check line sensor
+    global line_sensor_out
+    global read_start_mark 
+    global should_stop_for_mark
+    global ignore_mark_countdown
+    global should_ignore_mark
+    if should_move and should_stop_for_mark:
+        if not should_ignore_mark and read_start_mark and line_sensor_reading:
+            should_move = False
+            should_stop = True
+            runtime = datetime.now() + timedelta(seconds=0.5)
+            print(f"READ STOP MARK")
+        
+        if not read_start_mark and line_sensor_reading:
+            read_start_mark = True
+            ignore_mark_countdown = datetime.now()
+            print("READ START MARK")
+        
+        should_ignore_mark = not (read_start_mark and (datetime.now() - ignore_mark_countdown >= 10))
 
     # Determine the speed to turn and get the line in the center of the camera.
     angular = float(error) * -KP
@@ -738,6 +777,8 @@ def main():
     if args.distance != None:  # should stop
         stop_for_distancecallback()
 
+    if args.linestop:   # should stop
+        stop_for_mark_callback()
 
     ##############################
     # HIGHLY EXPERIMENTAL CODE
