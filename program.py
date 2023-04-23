@@ -76,6 +76,7 @@ init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
 error = 0
+last_error = 0
 total_distance = 0
 no_movement_count = 0
 just_seen_line = False
@@ -107,19 +108,26 @@ csv_file = None
 
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
-MIN_AREA = 5000 
+# MIN_AREA = 5000 
+MIN_AREA = 10000 
+
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 9500
+MIN_AREA_TRACK = 15000
+# MIN_AREA_TRACK = 9500
 
-MAX_CONTOUR_VERTICES = 40
+# MAX_CONTOUR_VERTICES = 40
+MAX_CONTOUR_VERTICES = 65
+
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 80.0
 LINEAR_SPEED_ON_CURVE = 60
-LINEAR_SPEED_ON_LOSS = 40
-KP = 227 / 1000
+LINEAR_SPEED_ON_LOSS = 30
+KP = 190 / 1000
+KD = 400 / 1000
+
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -190,7 +198,7 @@ def crop_size(height, width):
     # return (3*height//5, height, 0, width)
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
-    return (3 * height // 5, 5 * height // 5, 0, width)
+    return (2 * height // 5, 5 * height // 5, 0, width)
 
 
 def show_callback():
@@ -476,6 +484,7 @@ def process_frame(image_input, last_res_v):
 
     debug_str2 = ""
     global error
+    global last_error
     global just_seen_line
     global just_seen_right_mark
     global should_move
@@ -541,6 +550,7 @@ def process_frame(image_input, last_res_v):
     if (line): 
         # if ((not lost) or (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
         # error:= The difference between the center of the image and the center of the line
+        last_error = error
         error = new_error
 
         # if lost:
@@ -617,7 +627,9 @@ def process_frame(image_input, last_res_v):
         should_ignore_mark = not (read_start_mark and (datetime.now() - ignore_mark_countdown >= timedelta(seconds=17)))
 
     # Determine the speed to turn and get the line in the center of the camera.
-    angular = float(error) * -KP
+    # angular = float(error) * -KP
+    angular = float(error) * -KP + (error - last_error) * -KD
+
 
     # resulting speed
     res_v = {
