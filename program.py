@@ -76,6 +76,7 @@ init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
 error = 0
+angular = 0
 last_error = 0
 total_distance = 0
 no_movement_count = 0
@@ -109,11 +110,11 @@ csv_file = None
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
 # MIN_AREA = 5000 
-MIN_AREA = 10000 
+MIN_AREA = 17000 
 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 15000
+MIN_AREA_TRACK = 22000
 # MIN_AREA_TRACK = 9500
 
 # MAX_CONTOUR_VERTICES = 40
@@ -122,11 +123,11 @@ MAX_CONTOUR_VERTICES = 65
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 80.0
-LINEAR_SPEED_ON_CURVE = 60
-LINEAR_SPEED_ON_LOSS = 30
-KP = 190 / 1000
-KD = 400 / 1000
+LINEAR_SPEED = 75.0
+LINEAR_SPEED_ON_CURVE = 65
+LINEAR_SPEED_ON_LOSS = 20
+KP = 225 / 1000
+KD = 600 / 1000
 
 
 # error when the curve starts
@@ -198,7 +199,7 @@ def crop_size(height, width):
     # return (3*height//5, height, 0, width)
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
-    return (2 * height // 5, 5 * height // 5, 0, width)
+    return (1 * height // 5, 5 * height // 5, 0, width)
 
 
 def show_callback():
@@ -483,6 +484,7 @@ def process_frame(image_input, last_res_v):
     """
 
     debug_str2 = ""
+    global angular
     global error
     global last_error
     global just_seen_line
@@ -576,6 +578,8 @@ def process_frame(image_input, last_res_v):
 
         just_seen_line = True
         #error = new_error
+        angular = float(error) * -KP + (error - last_error) * -KD
+
     else:
         # if new_error:
         debug_str2 = f"last={error}| new={new_error}"
@@ -586,11 +590,11 @@ def process_frame(image_input, last_res_v):
         if just_seen_line:
             just_seen_line = False
             error = error * LOSS_FACTOR
+            angular = angular * LOSS_FACTOR
 
         linear = LINEAR_SPEED_ON_LOSS
 
     global runtime
-
     
     # Check for final countdown
     if should_move and should_stop:
@@ -628,7 +632,6 @@ def process_frame(image_input, last_res_v):
 
     # Determine the speed to turn and get the line in the center of the camera.
     # angular = float(error) * -KP
-    angular = float(error) * -KP + (error - last_error) * -KD
 
 
     # resulting speed
