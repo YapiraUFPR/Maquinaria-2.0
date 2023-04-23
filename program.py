@@ -117,9 +117,9 @@ MAX_CONTOUR_VERTICES = 40
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 65.0
-LINEAR_SPEED_ON_CURVE = 47
+LINEAR_SPEED_ON_CURVE = 50
 LINEAR_SPEED_ON_LOSS = 30
-KP = 23 / 100
+KP = 230 / 1000
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
