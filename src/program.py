@@ -4,7 +4,7 @@ A program used to control a differential drive robot with a camera,
 so it follows the line in a Robotrace style track.
 You may change the parameters BECAUSE IT IS NECESSARY.
 """
-__author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique and Isadora Botassari"
+__author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique, Isadora Botassari and Maite Aska"
 
 import numpy as np
 import cv2
@@ -12,6 +12,7 @@ import signal
 import RPi.GPIO as GPIO
 from libs.DC_Motor_pi import DC_Motor
 from libs.encoder import Encoder
+from libs.map import Map
 import requests
 from datetime import datetime, timedelta
 import argparse
@@ -20,7 +21,6 @@ import csv
 from os.path import exists
 from os import makedirs
 from math import sqrt
-import json
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -66,6 +66,8 @@ global encoder_mr
 encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
 encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
 
+track_map = None
+
 # line sensor pin to read stop mark
 line_sensor_out = 40
 GPIO.setup(line_sensor_out, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -84,6 +86,7 @@ just_seen_line = False
 read_start_mark = False
 ignore_mark_countdown = None
 should_ignore_mark = False
+right_mark_buffer_count = 0
 
 should_stop_for_mark = False
 should_move = False
@@ -94,7 +97,6 @@ should_stop_for_distance = False
 should_write = False
 should_map = False
 should_use_map = False
-track_map = {}
 current_strech = 0
 record_frames = []
 shape = ()
@@ -104,8 +106,7 @@ csv_writer = None
 csv_file = None
 
 # finalization_countdown = None
-# right_mark_count = 0
-# just_seen_right_mark = False
+right_mark_count = 0
 
 ## User-defined parameters: (Update these values as necessary)
 # Minimum size for a contour to be considered anything
@@ -268,7 +269,7 @@ def stop_callback():
     print("WILL STOP")
     print(">>", end="")
 
-def stop_for_distancecallback():
+def stop_for_distance_callback():
     global should_stop_for_distance
     global track_length
     track_length = int(args.distance)
@@ -286,24 +287,30 @@ def stop_for_mark_callback():
 
 def map_callback():
     global should_map
+    global track_map
+    global encoder_ml
+    global encoder_mr
+    
     should_map = True
+    track_map = Map(encoder_mr, encoder_ml, 1, 1)
+
     print("WILL MAP")
     print(">>", end="")
 
 def save_map():
     global should_map
     global track_map
-    if should_map:
-        with open(f'{datetime.now()}_map.json', 'w') as output_file:
-            output_file.write(json.dumps(track_map))
+    # if should_map:
+    #     with open(f'{datetime.now()}_map.json', 'w') as output_file:
+    #         output_file.write(json.dumps(track_map))
 
 def load_map(filename):
     global should_use_map
     global track_map 
-    should_use_map = True
-    print("LOADING MAP")
-    map_file = open(filename, "r")
-    track_map = json.load(map_file)
+    # should_use_map = True
+    # print("LOADING MAP")
+    # map_file = open(filename, "r")
+    # track_map = json.load(map_file)
 
 def start_follower_callback(request, response):
     """
@@ -362,6 +369,11 @@ def get_contour_data(mask, out, previous_pos):
     and draw all contours on 'out' image
     """
 
+    global should_map
+    global track_map
+    global right_mark_buffer_count
+    global right_mark_count
+
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
     # mask = cv2.erode(mask, kernel, iterations=1)
@@ -381,6 +393,7 @@ def get_contour_data(mask, out, previous_pos):
     height, width, _ = out.shape
 
     while not over:
+        saw_right_mark = False
         for contour in contours:
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
@@ -391,9 +404,8 @@ def get_contour_data(mask, out, previous_pos):
             if M["m00"] < MIN_AREA:
                 continue
 
-            if (contour_vertices < MAX_CONTOUR_VERTICES) and (
-                M["m00"] > MIN_AREA_TRACK
-            ):
+            if (contour_vertices < MAX_CONTOUR_VERTICES) and (M["m00"] > MIN_AREA_TRACK):
+
                 # Contour is part of the track
                 line["x"] = crop_w_start + int(M["m10"] / M["m00"])
                 line["y"] = int(M["m01"] / M["m00"])
@@ -450,6 +462,18 @@ def get_contour_data(mask, out, previous_pos):
                     2,
                 )
 
+                saw_right_mark = True
+                # if contour is a right mark append to map
+                if should_map and right_mark_buffer_count == 0:
+                    track_map.append_map()
+                
+                # saw a right mark recently
+                if right_mark_buffer_count < 5:
+                    right_mark_buffer_count += 1
+
+        if not saw_right_mark:
+            right_mark_buffer_count -= 1
+
         if line:
             over = True
 
@@ -488,7 +512,7 @@ def process_frame(image_input, last_res_v):
     global error
     global last_error
     global just_seen_line
-    global just_seen_right_mark
+    global right_mark_buffer_count
     global should_move
     global should_stop
     global should_stop_for_distance
@@ -560,17 +584,17 @@ def process_frame(image_input, last_res_v):
 
         lost = False
         
-        res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
-        if should_map:
-            track_map[res_dist//MAP_INTERVAL] = get_max_speed()
+        # res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
+        # if should_map:
+        #     track_map[res_dist//MAP_INTERVAL] = get_max_speed()
 
-        if should_use_map:
-            linear = track_map[res_dist//MAP_INTERVAL] if res_dist in track_map else last_res_v["linear"]
-        else:
-            if abs(error) > CURVE_ERROR_THRH:
-                linear = LINEAR_SPEED_ON_CURVE
-            else:
-                linear = LINEAR_SPEED
+        # if should_use_map:
+        #     linear = track_map[res_dist//MAP_INTERVAL] if res_dist in track_map else last_res_v["linear"]
+        # else:
+        #     if abs(error) > CURVE_ERROR_THRH:
+        #         linear = LINEAR_SPEED_ON_CURVE
+        #     else:
+        #         linear = LINEAR_SPEED
 
         # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
         #     linear = LINEAR_SPEED_ON_LOSS
@@ -789,7 +813,7 @@ def main():
         stop_callback()
 
     if args.distance != None:  # should stop
-        stop_for_distancecallback()
+        stop_for_distance_callback()
 
     if args.linestop:   # should stop
         stop_for_mark_callback()
@@ -822,7 +846,7 @@ def main():
     while retval:
         try:
             # image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            # perspective = cv2.warpPerspective(image, matrix, dsize=(width, height))
+            # perspective = cv2.warpPerspective(image, matrix, q))
 
             perspective = image
             last_res_v = process_frame(perspective, last_res_v)

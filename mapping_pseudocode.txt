@@ -1,0 +1,45 @@
+// supoe que a gravidade esta em m/s e o diametro da roda em m
+
+STATIC_COEFICIENT = ?    // coeficiente de atrito estatico
+WHEEL_DIAMETER = ?       // diametro da roda em metros 
+REV_PULSES = ?           // numero de pulsos / rotacao do encoder 
+AXIS_DISTANCE = ?        // distancia entre as rodas 
+GRAVITY = 9.8 m/s
+
+// componentes da formula calculada pela regressao linear
+A = ?
+B = ?
+
+MAP = []   // mapa
+
+LINE_COUNT = 0           // contador de curvas 
+
+// !! PRECISA RESETAR OS PULSOS DO ENCODER EM CADA MARCACAO !!
+function encoderDistance(encoder)
+  return encoder.pulses * WHEEL_DIAMETER / REV_PULSES
+
+function curveRadius()
+// calcula o raio da parte atual da pista 
+  Sr = encoderDistance(rightEncoder)
+  Sl = encoderDistance(leftEncoder)
+  
+  if |Sr - Sl| < 10^-9:
+    return INFINITY
+
+  return (AXIS_DISTANCE/2) * ((Sr +  Sl ) / |(Sr - Sl)|)
+
+function maxSpeed()
+// calcula a velocidade maxima do trecho
+  R = curveRadius()
+  
+  if R == INFINITY:
+    return MAX_SPEED
+
+  return sqrt(STATIC_COEFICIENT * R * GRAVITY)
+
+function metersToPWM(speed)
+// converte metros/s para PWM
+  return A*speed + B
+
+function map()
+  MAP[LINE_COUNT-1] = maxSpeed()

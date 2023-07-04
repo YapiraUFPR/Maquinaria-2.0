@@ -2,7 +2,6 @@ import RPi.GPIO as GPIO
 import time
 import math
 
-
 class Encoder:
     def __init__(self, encoder_a, encoder_b, steps, radius_wheel):
         # init pins
@@ -48,20 +47,9 @@ class Encoder:
         else:
             self.current_dir = -1
 
-    #def calculate_encoder_values(self):
-
         # some rotory encoder calculations
         self.frequency = 1/self.period
         self.calc_rpm = self.frequency * 60 // self.steps
         self.rotations = self.modular_pulse_counter // self.steps 
 
-        self.distance += ((2 * math.pi * self.radius_wheel) / self.steps) * self.current_dir
-        # self.distance = ((2 * math.pi * self.radius_wheel) / self.steps) * self.modular_pulse_counter * self.current_dir
-
-        # if self.modular_pulse_counter >= self.steps:
-        #     self.modular_pulse_counter = 0
-
-    # def __del__(self):
-    #     GPIO.remove_event_detect(self.encoder_a)
-    #     print("deleted")
-        
+        self.distance += ((2 * math.pi * self.radius_wheel) / self.steps) * self.current_dir        
