@@ -115,17 +115,17 @@ MIN_AREA = 17000
 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 22000
+MIN_AREA_TRACK = 17000
 # MIN_AREA_TRACK = 9500
 
-# MAX_CONTOUR_VERTICES = 40
-MAX_CONTOUR_VERTICES = 65
+MAX_CONTOUR_VERTICES = 80
+# MAX_CONTOUR_VERTICES = 65
 
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 75.0
-LINEAR_SPEED_ON_CURVE = 65
+LINEAR_SPEED = 65.0
+LINEAR_SPEED_ON_CURVE = 40
 LINEAR_SPEED_ON_LOSS = 20
 KP = 225 / 1000
 KD = 600 / 1000
@@ -152,7 +152,8 @@ LOSS_FACTOR = 1.2
 # frames without diff in the speed
 NO_MOVEMENT_FRAMES = 3
 
-RESIZE_SIZE = 4
+# RESIZE_SIZE = 4 
+RESIZE_SIZE = 6 
 
 
 # CTR_CENTER_SIZE_FACTOR = 10
@@ -176,8 +177,7 @@ STATIC_FRICTION_COEFFICIENT = 1.7325 # TO BE CALCULATED
 MAP_INTERVAL = 90   # used to reduce number of entries in map 
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([100, 100, 33])
-# lower_bgr_values = np.array([120, 120, 45])
+lower_bgr_values = np.array([40, 40, 33])
 upper_bgr_values = np.array([255, 255, 255])
 
 # HSV values to filter only the selected color range
@@ -398,58 +398,60 @@ def get_contour_data(mask, out, previous_pos):
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
 
-            contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
+            contour_vertices = len(cv2.approxPolyDP(contour, 2.5, True))
             # print("vertices: ", contour_vertices)
 
             if M["m00"] < MIN_AREA:
                 continue
-
+            
+            line["valid"] = False
             if (contour_vertices < MAX_CONTOUR_VERTICES) and (M["m00"] > MIN_AREA_TRACK):
+                line["valid"] = True
 
-                # Contour is part of the track
-                line["x"] = crop_w_start + int(M["m10"] / M["m00"])
-                line["y"] = int(M["m01"] / M["m00"])
+            # Contour is part of the track
+            line["x"] = crop_w_start + int(M["m10"] / M["m00"])
+            line["y"] = int(M["m01"] / M["m00"])
 
-                possible_tracks.append(line)
+            possible_tracks.append(line)
 
-                # plot the amount of vertices in light blue
-                cv2.drawContours(out, contour, -1, (255, 255, 0), 1)
-                # cv2.putText(out, str(M['m00']), (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
-                #     cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (100,200,150), 1)
+            # plot the amount of vertices in light blue
+            cv2.drawContours(out, contour, -1, (255, 255, 0), 1)
+            # cv2.putText(out, str(M['m00']), (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
+            #     cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (100,200,150), 1)
 
-                cv2.putText(
-                    out,
-                    str(contour_vertices),
-                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
-                    cv2.FONT_HERSHEY_PLAIN,
-                    2 / (RESIZE_SIZE / 3),
-                    (100, 200, 150),
-                    1,
-                )
+            cv2.putText(
+                out,
+                str(contour_vertices),
+                (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                cv2.FONT_HERSHEY_PLAIN,
+                2 / (RESIZE_SIZE / 3),
+                (100, 200, 150),
+                1,
+            )
 
-                vx, vy, x1, y1 = cv2.fitLine(contour, cv2.DIST_L2, 0, 0.01, 0.01)
-                y2 = y1 + vy
-                x2 = x1 + vx
+            vx, vy, x1, y1 = cv2.fitLine(contour, cv2.DIST_L2, 0, 0.01, 0.01)
+            y2 = y1 + vy
+            x2 = x1 + vx
 
-                y = line["y"] - 20
-                x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
-                if x < 0 or x > width:
-                    x = line["x"]
+            y = line["y"] - 20
+            x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
+            if x < 0 or x > width:
+                x = line["x"]
 
-                # print(vy, y, y1)
+            # print(vy, y, y1)
 
-                # check if contour is a crossing
-                cx,cy,cw,ch = cv2.boundingRect(contour)
-                line["is_crossing"] = (cw >= width and ch >= height and cx == 0 and cy == 0)
-                
-                line["area"] = M["m00"]
-                line["len"] = contour_vertices
-                line["expected_x"] = x
+            # check if contour is a crossing
+            cx,cy,cw,ch = cv2.boundingRect(contour)
+            line["is_crossing"] = (cw >= width and ch >= height and cx == 0 and cy == 0)
+            
+            line["area"] = M["m00"]
+            line["len"] = contour_vertices
+            line["expected_x"] = x
 
-                #print(f"circle at {x, y}")
-                cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
+            #print(f"circle at {x, y}")
+            cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
 
-            else:
+            if not line["valid"]:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 1)
                 cv2.putText(
@@ -474,7 +476,7 @@ def get_contour_data(mask, out, previous_pos):
         if not saw_right_mark:
             right_mark_buffer_count -= 1
 
-        if line:
+        if line.get("valid"):
             over = True
 
         # Did not find the line. Try eroding more?
@@ -490,7 +492,8 @@ def get_contour_data(mask, out, previous_pos):
             over = True
 
     if not possible_tracks:
-        chosen_line = None
+        # chosen_line = {"valid": False}
+        chosen_line = {}
     else:
         chosen_line = min(
             possible_tracks, key=lambda line: abs(line["x"] - previous_pos)
@@ -560,7 +563,7 @@ def process_frame(image_input, last_res_v):
 
     x = None
 
-    if line:
+    if line.get("valid"):
         x = line['x'] if line['is_crossing'] else line['expected_x']
         new_error = x - cx
     else:
@@ -573,7 +576,7 @@ def process_frame(image_input, last_res_v):
     # if (line) and (not lost):
     #if (line)
 
-    if (line): 
+    if line.get("valid"): 
         # if ((not lost) or (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
         # error:= The difference between the center of the image and the center of the line
         last_error = error
@@ -591,10 +594,10 @@ def process_frame(image_input, last_res_v):
         # if should_use_map:
         #     linear = track_map[res_dist//MAP_INTERVAL] if res_dist in track_map else last_res_v["linear"]
         # else:
-        #     if abs(error) > CURVE_ERROR_THRH:
-        #         linear = LINEAR_SPEED_ON_CURVE
-        #     else:
-        #         linear = LINEAR_SPEED
+        if abs(error) > CURVE_ERROR_THRH:
+            linear = LINEAR_SPEED_ON_CURVE
+        else:
+            linear = LINEAR_SPEED
 
         # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
         #     linear = LINEAR_SPEED_ON_LOSS
@@ -780,15 +783,16 @@ def main():
     # set camera captura settings
     video = cv2.VideoCapture(0)
     video.set(cv2.CAP_PROP_FPS, 90)
-    video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-    video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
+    # video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    # video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
     retval, image = video.read()
 
     # set resize settings
     height, width, _ = image.shape
     # shape = (width, height)
-    error = width // (RESIZE_SIZE * 2)
+    # error = width // (RESIZE_SIZE * 2)
+    error = 0
     print(image.shape)
     print(">>", end="")
 
