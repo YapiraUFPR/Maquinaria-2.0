@@ -1,6 +1,6 @@
 import math
 
-class Map():
+class TrackMap():
 
     # TO BE CALCULATED
     STATIC_COEFICIENT = 1

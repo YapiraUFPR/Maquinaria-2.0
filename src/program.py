@@ -8,11 +8,10 @@ __author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique, Isadora Botassa
 
 import numpy as np
 import cv2
-import signal
 import RPi.GPIO as GPIO
 from libs.DC_Motor_pi import DC_Motor
 from libs.encoder import Encoder
-from libs.map import Map
+from libs.track_map import TrackMap
 import requests
 from datetime import datetime, timedelta
 import argparse
@@ -20,41 +19,28 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
-from math import sqrt
 
 # init arg parser
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--start", action="store_true", help="Follow line")
 parser.add_argument("-r", "--record", action="store_true", help="Record masked image")
-parser.add_argument(
-    "-w", "--write", action="store_true", help="Write encoder values to csv"
-)
-parser.add_argument(
-    "-o",
-    "--output",
-    metavar="address",
-    action="store",
-    help="Show output image to ip address",
-)
-parser.add_argument(
-    "-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds"
-)
-parser.add_argument(
-    "-l", "--linestop", action="store_true", help="Stop by reading the line sensor"
-)
-parser.add_argument(
-    "-d",
-    "--distance",
-    metavar="store_true",
-    help="Stop the robot in `DISTANCE` centimetres",
-)
-parser.add_argument(
-    "-m", "--map", action="store_true", help="Create a map of the track"
-)
-parser.add_argument(
-    "-um", "--usemap", metavar="map_file", help="Use map to follow the line"
-)
+parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
+parser.add_argument("-o","--output",metavar="address",action="store",help="Show output image to ip address")
+parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
+parser.add_argument("-l", "--linestop", action="store_true", help="Stop by reading the side mark")
+parser.add_argument("-d","--distance",metavar="store_true",help="Stop the robot in `DISTANCE` centimetres")
+parser.add_argument("-m", "--map", action="store_true", help="Create a map of the track")
+parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
 args = parser.parse_args()
+
+############################# DEFINES #############################
+###################################################################
+
+# encoder values
+STEPS_NUMBER = 7 * 20
+RPM = 800
+RADIUS_WHEEL = 1.65  # centimeters
+# RADIUS_WHEEL = 16.5 # millimeters
 
 # pins setup
 clockwise_pin_1 = 13
@@ -65,33 +51,16 @@ clockwise_pin_2 = 16
 counterclockwise_pin_2 = 15
 pwm_pin_2 = 18
 
-motor_left = DC_Motor(clockwise_pin_1, counterclockwise_pin_1, pwm_pin_1)
-motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
-
-# encoder values
-# STEPS_NUMBER = 7
-STEPS_NUMBER = 7 * 20
-RPM = 800
-RADIUS_WHEEL = 1.65  # centimeters
-# RADIUS_WHEEL = 16.5 # millimeters
-
-# encoder pin setup
 encoder_a_ml = 35
 encoder_b_ml = 33
 encoder_a_mr = 19
 encoder_b_mr = 21
 
-global encoder_ml
-global encoder_mr
+motor_left = DC_Motor(clockwise_pin_1, counterclockwise_pin_1, pwm_pin_1)
+motor_right = DC_Motor(clockwise_pin_2, counterclockwise_pin_2, pwm_pin_2)
 
 encoder_ml = Encoder(encoder_a_ml, encoder_b_ml, STEPS_NUMBER, RADIUS_WHEEL)
 encoder_mr = Encoder(encoder_a_mr, encoder_b_mr, STEPS_NUMBER, RADIUS_WHEEL)
-
-track_map = None
-
-# line sensor pin to read stop mark
-line_sensor_out = 40
-GPIO.setup(line_sensor_out, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 # Global vars. initial values
 runtime = 0  # time until it should stop
@@ -108,7 +77,6 @@ read_start_mark = False
 ignore_mark_countdown = None
 should_ignore_mark = False
 right_mark_buffer_count = 0
-
 should_stop_for_mark = False
 should_move = False
 should_record = False
@@ -121,19 +89,18 @@ should_use_map = False
 current_strech = 0
 record_frames = []
 shape = ()
-
 ip_addr = "0.0.0.0"
 csv_writer = None
 csv_file = None
-
-# finalization_countdown = None
+track_map = None
 right_mark_count = 0
+frame_count = 0
 
 ## User-defined parameters: (Update these values as necessary)
+
 # Minimum size for a contour to be considered anything
 # MIN_AREA = 5000
 MIN_AREA = 17000
-
 
 # Minimum size for a contour to be considered part of the track
 MIN_AREA_TRACK = 17500
@@ -142,32 +109,26 @@ MIN_AREA_TRACK = 17500
 MAX_CONTOUR_VERTICES = 80
 # MAX_CONTOUR_VERTICES = 65
 
-
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 60.0
 LINEAR_SPEED_ON_CURVE = 35.0
 LINEAR_SPEED_ON_LOSS = 20.0
-# KP = 225 / 1000
-# KD = 600 / 1000
+
+# Proportional constant to be applied on speed when turning
+# (Multiplied by the error value)
+# KP = 180 / 1000
+# KD = 500 / 1000
 KP = 0.18
 KD = 0.5
-
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
 LOSS_THRH = 40
 
-
 FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS = 10
 after_loss_count = FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS + 1
 
-# mininum speed to keep the robot running without rampup
-# MIN_SPEED = 7
-
-# Proportional constant to be applied on speed when turning
-# (Multiplied by the error value)
-# KP = 26/100
 
 # If the line is completely lost, the error value shall be compensated by:
 LOSS_FACTOR = 1.2
@@ -178,53 +139,15 @@ NO_MOVEMENT_FRAMES = 3
 # RESIZE_SIZE = 4
 RESIZE_SIZE = 6
 
-
-# CTR_CENTER_SIZE_FACTOR = 10
-# CTR_CENTER_SIZE_FACTOR = 1
-# Send messages every $TIMER_PERIOD seconds
-# TIMER_PERIOD = 0.06
-
-# When about to end the track, move for ~$FINALIZATION_PERIOD more seconds
-# FINALIZATION_PERIOD = 4
-
-# Time the robot takes to finish the track in seconds
-# RUNTIME = 127.0
-
-# The maximum error value for which the robot is still in a straight line
-# MAX_ERROR = 30
-
-# mapping calculations
-WHEELS_DISTANCE = 123  # in milimeters
-GRAVITY = 9.8
-STATIC_FRICTION_COEFFICIENT = 1.7325  # TO BE CALCULATED
-MAP_INTERVAL = 90  # used to reduce number of entries in map
-
 # BGR values to filter only the selected color range
 lower_bgr_values = np.array([40, 40, 40])
 upper_bgr_values = np.array([255, 255, 255])
 
-# HSV values to filter only the selected color range
-lower_hsv_values = np.array([79, 0, 113])
-upper_hsv_values = np.array([120, 170, 255])
-
-
 RECORD_PERIOD = 3
+OUTPUT_FOLDER = "../outputs"
 
-
-def crop_size(height, width):
-    """
-    Get the measures to crop the image
-    Output:
-    (Height_upper_boundary, Height_lower_boundary,
-    Width_left_boundary, Width_right_boundary)
-    """
-    ## Update these parameters as well.
-
-    # return (3*height//5, height, 0, width)
-    # return (2*height//5, 3*height//5, 0, width)
-    # return (4*height//5, height, 0, width)
-    return (2 * height // 6, height, 0, width)
-
+############################ CALLBACKS ############################
+###################################################################
 
 def show_callback():
     global should_show
@@ -243,13 +166,30 @@ def record_callback():
     print("RECORDING")
     print(">>", end="")
 
+def end_record():
+    global should_record
+    global record_frames
+    global shape
+    if should_record:
+        writer = cv2.VideoWriter(
+            f"{OUTPUT_FOLDER}/pov-{datetime.now().minute}.mp4",
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            10,
+            shape,
+        )
+        print(len(record_frames))
+        for frame in record_frames:
+            writer.write(frame)
+        writer.release()
+        print("Finished recording")
+
 
 def write_callback():
     global should_write
     global csv_writer
     global csv_file
     should_write = True
-    csv_file = open(f"./outputs/values-{datetime.now().minute}.csv", "w")
+    csv_file = open(f"{OUTPUT_FOLDER}/values-{datetime.now().minute}.csv", "w")
     csv_writer = csv.writer(csv_file)
     header = [
         "timestamp",
@@ -263,32 +203,12 @@ def write_callback():
     # write the header
     csv_writer.writerow(header)
 
-
 def end_write():
     global should_write
     global csv_file
     if should_write:
         csv_file.close()
         print("Finished writing")
-
-
-def end_record():
-    global should_record
-    global record_frames
-    global shape
-    if should_record:
-        writer = cv2.VideoWriter(
-            f"./outputs/pov-{datetime.now().minute}.mp4",
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            10,
-            shape,
-        )
-        print(len(record_frames))
-        for frame in record_frames:
-            writer.write(frame)
-        writer.release()
-        print("Finished recording")
-
 
 def stop_callback():
     global should_stop
@@ -299,7 +219,6 @@ def stop_callback():
     should_stop = True
     print("WILL STOP")
     print(">>", end="")
-
 
 def stop_for_distance_callback():
     global should_stop_for_distance
@@ -326,28 +245,10 @@ def map_callback():
     global encoder_mr
 
     should_map = True
-    track_map = Map(encoder_mr, encoder_ml, 1, 1)
+    track_map = TrackMap(encoder_mr, encoder_ml, 1, 1)
 
     print("WILL MAP")
     print(">>", end="")
-
-
-def save_map():
-    global should_map
-    global track_map
-    # if should_map:
-    #     with open(f'{datetime.now()}_map.json', 'w') as output_file:
-    #         output_file.write(json.dumps(track_map))
-
-
-def load_map(filename):
-    global should_use_map
-    global track_map
-    # should_use_map = True
-    # print("LOADING MAP")
-    # map_file = open(filename, "r")
-    # track_map = json.load(map_file)
-
 
 def start_follower_callback(request, response):
     """
@@ -380,27 +281,21 @@ def stop_follower_callback(request, response):
     print(">>", end="")
     return response
 
+###################################################################
 
-def get_track_radius():
+def crop_size(height, width):
     """
-    Calculate track radius using encoder measures
+    Get the measures to crop the image
+    Output:
+    (Height_upper_boundary, Height_lower_boundary,
+    Width_left_boundary, Width_right_boundary)
     """
-    global encoder_ml
-    global encoder_mr
-    if encoder_mr.distance == encoder_ml.distance:
-        return float("inf")
+    ## Update these parameters as well.
 
-    return (WHEELS_DISTANCE / 2) * (
-        (encoder_mr.distance + encoder_ml.distance)
-        / (encoder_mr.distance - encoder_ml.distance)
-    )
-
-
-def get_max_speed():
-    """
-    Calculate the max speed for the current track part
-    """
-    return sqrt(get_track_radius() * GRAVITY * STATIC_FRICTION_COEFFICIENT)
+    # return (3*height//5, height, 0, width)
+    # return (2*height//5, 3*height//5, 0, width)
+    # return (4*height//5, height, 0, width)
+    return (2 * height // 6, height, 0, width)
 
 
 def get_contour_data(mask, out, previous_pos):
@@ -546,10 +441,6 @@ def get_contour_data(mask, out, previous_pos):
 
     return chosen_line
 
-
-frame_count = 0
-
-
 def process_frame(image_input, last_res_v):
     """
     According to an image 'image_input', determine the speed of the robot
@@ -599,7 +490,6 @@ def process_frame(image_input, last_res_v):
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
     mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
-    # mask = cv2.inRange(hsv, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
@@ -616,13 +506,7 @@ def process_frame(image_input, last_res_v):
         new_error = x - cx
     else:
         new_error = None
-        # lost = True
 
-    # print(expected_x, line)
-    # (((error < 0) and (new_error < 0)) or ((error > 0) and (new_error > 0)))):
-
-    # if (line) and (not lost):
-    # if (line)
 
     if line.get("valid"):
         # if ((not lost) or (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
@@ -635,13 +519,6 @@ def process_frame(image_input, last_res_v):
 
         lost = False
 
-        # res_dist = (encoder_ml.distance + encoder_mr.distance) // 2
-        # if should_map:
-        #     track_map[res_dist//MAP_INTERVAL] = get_max_speed()
-
-        # if should_use_map:
-        #     linear = track_map[res_dist//MAP_INTERVAL] if res_dist in track_map else last_res_v["linear"]
-        # else:
         if abs(error) > CURVE_ERROR_THRH:
             linear = LINEAR_SPEED_ON_CURVE
         else:
@@ -688,8 +565,7 @@ def process_frame(image_input, last_res_v):
     global should_stop_for_mark
     global ignore_mark_countdown
     global should_ignore_mark
-    global line_sensor_out
-    line_sensor_reading = GPIO.input(line_sensor_out)
+    global line_sensor_reading
     if should_move and should_stop_for_mark:
         if line_sensor_reading:
             print(error < 30, should_ignore_mark, read_start_mark)
@@ -810,11 +686,7 @@ def process_frame(image_input, last_res_v):
         shape = (out_w, out_h)
 
         if should_show:
-            # Print the image for 5milis, then resume execution
-            # cv2.imshow("output", output)
-            # cv2.waitKey(5)
             _, imdata = cv2.imencode(".jpg", output_frame)
-            # _, imdata = cv2.imencode('.jpg', mask)
             requests.put(
                 f"http://{ip_addr}:5000/upload", data=imdata.tobytes()
             )  # send image to webserver
@@ -822,8 +694,6 @@ def process_frame(image_input, last_res_v):
         if should_record and (frame_count % RECORD_PERIOD) == 0:
             record_frames.append(output_frame)
 
-    # encoder_ml.read_encoders()
-    # encoder_mr.read_encoders()
     total_distance = (encoder_mr.distance + encoder_ml.distance) / 2
     if should_write:
         data = [
@@ -837,15 +707,7 @@ def process_frame(image_input, last_res_v):
         ]
         csv_writer.writerow(data)
 
-    # Uncomment to show the binary picture
-    # cv2.imshow("mask", mask)
-
     return res_v  # return speed of the current iteration
-
-
-def timeout(signum, frame):
-    raise TimeoutError
-
 
 def main():
     global lost
@@ -857,9 +719,6 @@ def main():
     lost = False
 
     print(datetime.now())
-
-    # Use system signals to stop input()
-    signal.signal(signal.SIGALRM, timeout)
 
     # set camera captura settings
     video = cv2.VideoCapture(0)
@@ -909,19 +768,9 @@ def main():
     if args.map:
         map_callback()
 
-    if args.usemap != None:
-        load_map(args.usemap)
+    # if args.usemap != None:
+    #    load_map(args.usemap)
     ##############################
-
-    points = [
-        (3 * width // 8, (height // 2) + 30),
-        (5 * width // 8, (height // 2) + 30),
-        (1 * width // 8, height - 5),
-        (7 * width // 8, height - 5),
-    ]
-    original_perspective = np.float32(points)
-    new = np.float32([(0, 0), (width, 0), (0, height), (width, height)])
-    matrix = cv2.getPerspectiveTransform(original_perspective, new)
 
     last_res_v = {"left": 0, "right": 0}
 
@@ -930,11 +779,8 @@ def main():
 
     while retval:
         try:
-            # image = cv2.resize(image, (width//RESIZE_SIZE, height//RESIZE_SIZE), interpolation= cv2.INTER_LINEAR)
-            # perspective = cv2.warpPerspective(image, matrix, q))
 
-            perspective = image
-            last_res_v = process_frame(perspective, last_res_v)
+            last_res_v = process_frame(image, last_res_v)
             retval, image = video.read()
 
             fps_count += 1
@@ -965,10 +811,6 @@ except KeyboardInterrupt:
 finally:
     del motor_right
     del motor_left
-    # del encoder_mr
-    # del encoder_ml
-    # video.close()
-    save_map()
     end_write()
     end_record()
     print("Ended successfully.")

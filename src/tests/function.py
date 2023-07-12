@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+from libs import track_map
 
 ## MAKE ALL THESE VALUES INTERACTIVE
 lower_bgr_values = np.array([115,  115,  40])
@@ -9,7 +10,6 @@ MIN_AREA = 10000
 MIN_AREA_TRACK = 30000
 MAX_CONTOUR_VERTICES = 100
 ERODE_KERNEL_SIZE = 5
-
 
 
 def get_contour_data(mask, out):
@@ -100,7 +100,7 @@ def get_contour_data(mask, out):
 # image_path = "color_semifuck.png"
 # image_path = "./new_colorfuck2.png"
 # image_path = "./theory.png"
-image_path = "./theory2.png"
+image_path = "../samples/theory2.png"
 
 
 
