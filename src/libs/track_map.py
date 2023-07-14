@@ -1,4 +1,5 @@
 import math
+import json
 
 class TrackMap():
 
@@ -45,3 +46,17 @@ class TrackMap():
 
         self.encoder_left.distance = 0
         self.encoder_right.distance = 0
+
+    def export(self):
+        json_str = json.dumps(self.__dict__)
+        with open("track_map.json", "w") as f:
+            f.write(json_str)
+
+    def import(self, fname):
+        with open(fname, "r") as f:
+            json_str = json.load(f)
+
+        self.track_map = json_str["track_map"]
+        self.A = json_str["a"]
+        self.B = json_str["B"]
+
