@@ -28,10 +28,8 @@ class Encoder:
         self.calc_rpm = 0
         self.rotations = 0
         self.distance = 0
-        should_read = True
         GPIO.add_event_detect(encoder_a, GPIO.RISING, callback=self.read_encoders_callback)
 
-    
     def read_encoders_callback(self, channel):
         # this is a highly experimental function
         # this should be able to detect encoder readings according to encoder_test.py
@@ -52,4 +50,16 @@ class Encoder:
         self.calc_rpm = self.frequency * 60 // self.steps
         self.rotations = self.modular_pulse_counter // self.steps 
 
-        self.distance += ((2 * math.pi * self.radius_wheel) / self.steps) * self.current_dir        
+        self.distance += ((2 * math.pi * self.radius_wheel) / self.steps) * self.current_dir  
+
+    def to_json(self):
+        return {
+            "pin_a": self.encoder_a,
+            "pin_b": self.encoder_b,
+            "steps": self.steps,
+            "radius_wheel": self.radius_wheel,
+            "distance": self.distance,
+            "frequency": self.frequency,
+            "calc_rpm": self.calc_rpm,
+            "rotations": self.rotations,
+        }   

@@ -1,47 +1,97 @@
-import math
+from math import sqrt, inf
+import json
 
 class TrackMap():
 
-    # TO BE CALCULATED
-    STATIC_COEFICIENT = 1
-    AXIS_DISTANCE = 1
-    WHEEL_DIAMETER = 3.2
-    REV_PULSES = 7 * 20
+    class Region():
+        def __init__(self, max_speed, pwm_speed, radius, lenght, is_curve):
+            self.max_speed = max_speed
+            self.pwm_speed = pwm_speed
+            self.radius = radius
+            self.lenght = lenght
+            self.is_curve = is_curve
+        
+        def to_json(self):
+            return {
+                "max_speed": self.max_speed,
+                "pwm_speed": self.pwm_speed,
+                "radius": self.radius,
+                "lenght": self.lenght,
+                "is_curve": self.is_curve
+            }
 
+    # TO BE CALCULATED
     GRAVITY = 980
 
-    def __init__(self, encoder_right, encoder_left, A, B):
+    def __init__(self, encoder_right, encoder_left, A, B, speed_limit=100, static_coeficient=sqrt(3), axis_distance=10):
+        self.static_coeficient=static_coeficient
+        self.axis_distance = axis_distance
+
+        # 2B (CONTINUED) CALCULATED
+        self.A = A
+        self.B = B
+        self.speed_limit = speed_limit
+
+        self.right_total_distance = 0 
+        self.left_total_distance = 0
+
         self.encoder_right = encoder_right
         self.encoder_left = encoder_left
 
         self.track_map=[]
 
-        # 2B (CONTINUED) CALCULATED
-        self.A = A
-        self.B = B
+    def curve_radius(self):
+        Sr = self.encoder_right.distance - self.right_total_distance
+        Sl = self.encoder_left.distance - self.left_total_distance
 
-    def curveRadius(self):
-        Sr = self.encoder_right.distance
-        Sl = self.encoder_left.distance
-        
         if abs(Sr - Sl) <= 1e-9:
-            return math.inf
+            return inf
         
-        return (self.AXIS_DISTANCE/2)*((Sr + Sl)/abs(Sr - Sl))
+        return (self.axis_distance/2)*((Sr + Sl)/abs(Sr - Sl))
 
-    def maxSpeed(self):
-        r = self.curveRadius()
+    def theoretical_max_speed(self, radius):
+        return sqrt(self.static_coeficient * radius * self.GRAVITY)
 
-        # if r == math.inf:
-        #     return math.inf
-        
-        return math.sqrt(self.STATIC_COEFICIENT * r * self.GRAVITY)
+    def meters2PWM(self, speed):
+        if speed == inf:
+            return self.speed_limit
 
-    def metersToPWM(self, speed):
         return self.A*speed + self.B
     
     def append_map(self):
-        self.track_map.append(self.metersToPWM(self.maxSpeed()))
+        radius = self.curve_radius()
+        max_speed = self.theoretical_max_speed(radius)
+        pwm_speed = self.meters2PWM(max_speed)
 
-        self.encoder_left.distance = 0
-        self.encoder_right.distance = 0
+        left_dist = self.encoder_left.distance - self.left_total_distance
+        right_dist = self.encoder_right.distance - self.right_total_distance
+
+        lenght = (left_dist + right_dist)/2
+        is_curve = (radius != inf)
+
+        region = self.Region(max_speed, pwm_speed, radius, lenght, is_curve)
+        self.track_map.append(region)
+        
+        self.right_total_distance = self.encoder_right.distance
+        self.left_total_distance = self.encoder_left.distance
+        
+    def to_json(self):
+        map_dict = self.__dict__
+        map_dict["encoder_right"] = self.encoder_right.to_json()
+        map_dict["encoder_left"] = self.encoder_left.to_json()
+        map_dict["track_map"] = [region.to_json() for region in self.track_map]
+        return map_dict
+
+    def to_file(self, fname):
+        json_str = json.dumps(self.to_json(), indent=4)
+        with open(fname, "w") as f:
+            f.write(json_str)
+
+    def from_file(self, fname):
+        with open(fname, "r") as f:
+            json_str = json.load(f)
+
+        self.track_map = json_str["track_map"]
+        self.A = json_str["A"]
+        self.B = json_str["B"]
+

@@ -37,11 +37,15 @@ args = parser.parse_args()
 ############################# DEFINES #############################
 ###################################################################
 
-# encoder values
+# encoder and mapping values
 STEPS_NUMBER = 7 * 20
 RPM = 800
-RADIUS_WHEEL = 1.65  # centimeters
-# RADIUS_WHEEL = 16.5 # millimeters
+RADIUS_WHEEL = 1.6  # cm
+STATIC_COEFICIENT = 1
+AXIS_DISTANCE = 10  # cm
+A = 1
+B = 1
+MAP_FNAME = "map.json"
 
 # pins setup
 clockwise_pin_1 = 13
@@ -237,14 +241,16 @@ def stop_for_mark_callback():
     print(">>", end="")
 
 
-def map_callback():
+def map_callback(load=False):
     global should_map
     global track_map
     global encoder_ml
     global encoder_mr
 
     should_map = True
-    track_map = TrackMap(encoder_mr, encoder_ml, 1, 1)
+    track_map = TrackMap(encoder_mr, encoder_ml, A, B, LINEAR_SPEED, STATIC_COEFICIENT, AXIS_DISTANCE)
+    if load:
+        track_map.from_file(MAP_FNAME)
 
     print("WILL MAP")
     print(">>", end="")
@@ -452,17 +458,19 @@ def process_frame(image_input, last_res_v):
     global last_error
     global just_seen_line
     global right_mark_buffer_count
+
     global should_move
     global should_stop
     global should_stop_for_distance
+    global should_map
+    global should_use_map
+
     global track_length
     global right_mark_count
     global init_time
     global lost
     global no_movement_count
     global after_loss_count
-    global should_map
-    global should_use_map
     global track_map
     global total_distance
 
@@ -517,6 +525,10 @@ def process_frame(image_input, last_res_v):
         #     after_loss_count = 0
 
         lost = False
+
+        # if should_use_map:
+        #     global track_map
+        #     linear = track_map.track_map[mark_count].pwm_speed
 
         if abs(error) > CURVE_ERROR_THRH:
             linear = LINEAR_SPEED_ON_CURVE
@@ -767,8 +779,8 @@ def main():
     if args.map:
         map_callback()
 
-    # if args.usemap != None:
-    #    load_map(args.usemap)
+    if args.usemap != None:
+        map_callback(load=True)
     ##############################
 
     last_res_v = {"left": 0, "right": 0}
