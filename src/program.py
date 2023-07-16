@@ -19,6 +19,7 @@ import time
 import csv
 from os.path import exists
 from os import makedirs
+import pickle
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -98,16 +99,17 @@ frame_count = 0
 
 ## User-defined parameters: (Update these values as necessary)
 
+RESIZE_FACTOR = 3
 # Minimum size for a contour to be considered anything
 # MIN_AREA = 5000
-MIN_AREA = 17000
+MIN_AREA = 300 
 
 # Minimum size for a contour to be considered part of the track
-MIN_AREA_TRACK = 17500
+# MIN_AREA_TRACK = 17500 // RESIZE_FACTOR * 3
+MIN_AREA_TRACK = 1400
 # MIN_AREA_TRACK = 9500
 
-MAX_CONTOUR_VERTICES = 80
-# MAX_CONTOUR_VERTICES = 65
+MAX_CONTOUR_VERTICES = 65
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
@@ -119,8 +121,8 @@ LINEAR_SPEED_ON_LOSS = 20.0
 # (Multiplied by the error value)
 # KP = 180 / 1000
 # KD = 500 / 1000
-KP = 0.18
-KD = 0.5
+KP = 0.35
+KD = 0.6
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -135,9 +137,6 @@ LOSS_FACTOR = 1.2
 
 # frames without diff in the speed
 NO_MOVEMENT_FRAMES = 3
-
-# RESIZE_SIZE = 4
-RESIZE_SIZE = 6
 
 # BGR values to filter only the selected color range
 lower_bgr_values = np.array([40, 40, 40])
@@ -364,7 +363,7 @@ def get_contour_data(mask, out, previous_pos):
                 str(contour_vertices),
                 (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
                 cv2.FONT_HERSHEY_PLAIN,
-                2 / (RESIZE_SIZE / 3),
+                2 / (RESIZE_FACTOR / 3),
                 (100, 200, 150),
                 1,
             )
@@ -399,9 +398,9 @@ def get_contour_data(mask, out, previous_pos):
                     f"{contour_vertices}-{M['m00']}",
                     (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
                     cv2.FONT_HERSHEY_PLAIN,
-                    2 / (RESIZE_SIZE / 3),
+                    2 / (RESIZE_FACTOR / 3),
                     (255, 0, 255),
-                    2,
+                    1,
                 )
 
                 saw_right_mark = True
@@ -621,7 +620,7 @@ def process_frame(image_input, last_res_v):
     debug_str3 = f"cVert:{line['len']}|cArea:{line['area']}" if line else ""
 
     if should_record or should_show:
-        text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 2, 2)
+        text_size, _ = cv2.getTextSize(debug_str, cv2.FONT_HERSHEY_PLAIN, 1, 1)
         text_w, text_h = text_size
 
         # cv2.rectangle(output, (0, 90), (text_w, 110 + text_h), (255,255,255), -1) <- mysterious white line
@@ -722,9 +721,9 @@ def main():
 
     # set camera captura settings
     video = cv2.VideoCapture(0)
-    video.set(cv2.CAP_PROP_FPS, 90)
-    # video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-    # video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
+    video.set(cv2.CAP_PROP_FPS, 120)
+    #video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    #video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
     retval, image = video.read()
 
@@ -777,10 +776,17 @@ def main():
     fps_count = 0
     ts = time.time()
 
+    calib_cam = pickle.load(open("calib_cam.pkl", "rb"))
+    mtx = calib_cam["mtx"]
+    dist = calib_cam["dist"]
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (width,height), 1, (width,height))
+
     while retval:
         try:
-
-            last_res_v = process_frame(image, last_res_v)
+            image = cv2.resize(image, (width//RESIZE_FACTOR, height//RESIZE_FACTOR), interpolation=cv2.INTER_LINEAR)
+            corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
+            
+            last_res_v = process_frame(corrected, last_res_v)
             retval, image = video.read()
 
             fps_count += 1
