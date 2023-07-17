@@ -135,7 +135,7 @@ MIN_AREA = 400
 
 # Minimum size for a contour to be considered part of the track
 # MIN_AREA_TRACK = 17500 // RESIZE_FACTOR * 3
-MIN_AREA_TRACK = 1400
+MIN_AREA_TRACK = 1750
 # MIN_AREA_TRACK = 9500
 
 MAX_CONTOUR_VERTICES = 65
@@ -150,8 +150,10 @@ LINEAR_SPEED_ON_LOSS = 20.0
 # (Multiplied by the error value)
 # KP = 180 / 1000
 # KD = 500 / 1000
-KP = 0.45
-KD = 0.6
+# KD = 0.45
+KP = 0.43
+KD = 0.65
+# KD = 0.50
 ALPHA = 1
 BETA = 0
 
@@ -589,6 +591,8 @@ def process_frame(image_input, last_res_v):
         # error = new_error
         P = float(error) * KP
         D = (float(error_deriv - last_error_deriv) * KD) / (image_ts - last_image_ts)
+        D *= 100000
+        print(P, D)
         angular = P + D
 
     else:
