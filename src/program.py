@@ -25,13 +25,34 @@ import pickle
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--start", action="store_true", help="Follow line")
 parser.add_argument("-r", "--record", action="store_true", help="Record masked image")
-parser.add_argument("-w", "--write", action="store_true", help="Write encoder values to csv")
-parser.add_argument("-o","--output",metavar="address",action="store",help="Show output image to ip address")
-parser.add_argument("-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds")
-parser.add_argument("-l", "--linestop", action="store_true", help="Stop by reading the side mark")
-parser.add_argument("-d","--distance",metavar="store_true",help="Stop the robot in `DISTANCE` centimetres")
-parser.add_argument("-m", "--map", action="store_true", help="Create a map of the track")
-parser.add_argument("-um", "--usemap", metavar="map_file", help="Use map to follow the line")
+parser.add_argument(
+    "-w", "--write", action="store_true", help="Write encoder values to csv"
+)
+parser.add_argument(
+    "-o",
+    "--output",
+    metavar="address",
+    action="store",
+    help="Show output image to ip address",
+)
+parser.add_argument(
+    "-p", "--stop", metavar="store_true", help="Stop the robot in `RUNTIME` seconds"
+)
+parser.add_argument(
+    "-l", "--linestop", action="store_true", help="Stop by reading the side mark"
+)
+parser.add_argument(
+    "-d",
+    "--distance",
+    metavar="store_true",
+    help="Stop the robot in `DISTANCE` centimetres",
+)
+parser.add_argument(
+    "-m", "--map", action="store_true", help="Create a map of the track"
+)
+parser.add_argument(
+    "-um", "--usemap", metavar="map_file", help="Use map to follow the line"
+)
 args = parser.parse_args()
 
 ############################# DEFINES #############################
@@ -73,8 +94,10 @@ init_time = int(datetime.now().timestamp())
 init_time_iso = datetime.now()
 image_input = None
 error = 0
+error_deriv = 0
 angular = 0
 last_error = 0
+last_error_deriv = 0
 total_distance = 0
 no_movement_count = 0
 just_seen_line = False
@@ -100,13 +123,15 @@ csv_file = None
 track_map = None
 right_mark_count = 0
 frame_count = 0
+image_ts = 0
+last_image_ts = 0
 
 ## User-defined parameters: (Update these values as necessary)
 
 RESIZE_FACTOR = 3
 # Minimum size for a contour to be considered anything
 # MIN_AREA = 5000
-MIN_AREA = 300 
+MIN_AREA = 400
 
 # Minimum size for a contour to be considered part of the track
 # MIN_AREA_TRACK = 17500 // RESIZE_FACTOR * 3
@@ -125,8 +150,10 @@ LINEAR_SPEED_ON_LOSS = 20.0
 # (Multiplied by the error value)
 # KP = 180 / 1000
 # KD = 500 / 1000
-KP = 0.35
+KP = 0.45
 KD = 0.6
+ALPHA = 1
+BETA = 0
 
 # error when the curve starts
 CURVE_ERROR_THRH = 22
@@ -152,6 +179,7 @@ OUTPUT_FOLDER = "../outputs"
 ############################ CALLBACKS ############################
 ###################################################################
 
+
 def show_callback():
     global should_show
     global ip_addr
@@ -168,6 +196,7 @@ def record_callback():
     record_frames = []
     print("RECORDING")
     print(">>", end="")
+
 
 def end_record():
     global should_record
@@ -206,12 +235,14 @@ def write_callback():
     # write the header
     csv_writer.writerow(header)
 
+
 def end_write():
     global should_write
     global csv_file
     if should_write:
         csv_file.close()
         print("Finished writing")
+
 
 def stop_callback():
     global should_stop
@@ -222,6 +253,7 @@ def stop_callback():
     should_stop = True
     print("WILL STOP")
     print(">>", end="")
+
 
 def stop_for_distance_callback():
     global should_stop_for_distance
@@ -248,12 +280,15 @@ def map_callback(load=False):
     global encoder_mr
 
     should_map = True
-    track_map = TrackMap(encoder_mr, encoder_ml, A, B, LINEAR_SPEED, STATIC_COEFICIENT, AXIS_DISTANCE)
+    track_map = TrackMap(
+        encoder_mr, encoder_ml, A, B, LINEAR_SPEED, STATIC_COEFICIENT, AXIS_DISTANCE
+    )
     if load:
         track_map.from_file(MAP_FNAME)
 
     print("WILL MAP")
     print(">>", end="")
+
 
 def start_follower_callback(request, response):
     """
@@ -286,7 +321,9 @@ def stop_follower_callback(request, response):
     print(">>", end="")
     return response
 
+
 ###################################################################
+
 
 def crop_size(height, width):
     """
@@ -301,6 +338,7 @@ def crop_size(height, width):
     # return (2*height//5, 3*height//5, 0, width)
     # return (4*height//5, height, 0, width)
     return (2 * height // 6, height, 0, width)
+    # return (2 * height // 6, height, 1 * width // 6, 5 * width // 6)
 
 
 def get_contour_data(mask, out, previous_pos):
@@ -446,6 +484,7 @@ def get_contour_data(mask, out, previous_pos):
 
     return chosen_line
 
+
 def process_frame(image_input, last_res_v):
     """
     According to an image 'image_input', determine the speed of the robot
@@ -455,7 +494,11 @@ def process_frame(image_input, last_res_v):
     debug_str2 = ""
     global angular
     global error
+    global error_deriv
     global last_error
+    global last_error_deriv
+    global image_ts
+    global last_image_ts
     global just_seen_line
     global right_mark_buffer_count
 
@@ -510,16 +553,19 @@ def process_frame(image_input, last_res_v):
 
     if line.get("valid"):
         x = line["x"] if line["is_crossing"] else line["expected_x"]
-        new_error = x - cx
+        new_error = ALPHA * cx - x
+        new_error_deriv = BETA * cx - x
     else:
         new_error = None
-
+        new_error_deriv = None
 
     if line.get("valid"):
         # if ((not lost) or (abs(new_error - error) < LOSS_THRH)): # robot is following the line, there IS some error, but not that much
         # error:= The difference between the center of the image and the center of the line
         last_error = error
         error = new_error
+        last_error_deriv = error_deriv
+        error_deriv = new_error_deriv
 
         # if lost:
         #     after_loss_count = 0
@@ -541,7 +587,9 @@ def process_frame(image_input, last_res_v):
 
         just_seen_line = True
         # error = new_error
-        angular = float(error) * -KP + (error - last_error) * -KD
+        P = float(error) * KP
+        D = (float(error_deriv - last_error_deriv) * KD) / (image_ts - last_image_ts)
+        angular = P + D
 
     else:
         # if new_error:
@@ -552,8 +600,9 @@ def process_frame(image_input, last_res_v):
         # Turn on the spot to find it again.
         if just_seen_line:
             just_seen_line = False
-            error = error * LOSS_FACTOR
-            angular = angular * LOSS_FACTOR
+            error *= LOSS_FACTOR
+            error_deriv *= LOSS_FACTOR
+            angular *= LOSS_FACTOR
 
         linear = LINEAR_SPEED_ON_LOSS
 
@@ -720,12 +769,15 @@ def process_frame(image_input, last_res_v):
 
     return res_v  # return speed of the current iteration
 
+
 def main():
     global lost
     global error
     global no_movement_count
     global csv_writer
     global shape
+    global image_ts
+    global last_image_ts
 
     lost = False
 
@@ -734,10 +786,12 @@ def main():
     # set camera captura settings
     video = cv2.VideoCapture(0)
     video.set(cv2.CAP_PROP_FPS, 120)
-    #video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-    #video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
+    # video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    # video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
     retval, image = video.read()
+    image_ts = time.time_ns()
+    last_image_ts = 0
 
     # set resize settings
     height, width, _ = image.shape
@@ -791,15 +845,23 @@ def main():
     calib_cam = pickle.load(open("calib_cam.pkl", "rb"))
     mtx = calib_cam["mtx"]
     dist = calib_cam["dist"]
-    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (width,height), 1, (width,height))
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(
+        mtx, dist, (width, height), 1, (width, height)
+    )
 
     while retval:
         try:
-            image = cv2.resize(image, (width//RESIZE_FACTOR, height//RESIZE_FACTOR), interpolation=cv2.INTER_LINEAR)
+            image = cv2.resize(
+                image,
+                (width // RESIZE_FACTOR, height // RESIZE_FACTOR),
+                interpolation=cv2.INTER_LINEAR,
+            )
             corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
-            
+
             last_res_v = process_frame(corrected, last_res_v)
             retval, image = video.read()
+            last_image_ts = image_ts
+            image_ts = time.time_ns()
 
             fps_count += 1
             if time.time() - ts >= 1:
