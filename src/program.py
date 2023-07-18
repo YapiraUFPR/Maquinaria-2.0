@@ -172,7 +172,7 @@ LOSS_FACTOR = 1.2
 NO_MOVEMENT_FRAMES = 3
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([40, 40, 40])
+lower_bgr_values = np.array([20, 20, 20])
 upper_bgr_values = np.array([255, 255, 255])
 
 RECORD_PERIOD = 3
@@ -745,7 +745,23 @@ def process_frame(image_input, last_res_v):
         out_mask[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop] = cv2.cvtColor(
             mask, cv2.COLOR_GRAY2BGR
         )
-        output_frame = np.append(output, out_mask, axis=1)
+
+        # y_channel = output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop, 0]
+        y_channel = output[:, :, 0]
+        u_channel = output[:, :, 1]
+        v_channel = output[:, :, 2]
+        # blurred = cv2.GaussianBlur(y_channel, (1, 15), 0)
+        # blurred = cv2.cvtColor(blurred, cv2.COLOR_GRAY2BGR)
+        y_channel = cv2.cvtColor(y_channel, cv2.COLOR_GRAY2BGR)
+        u_channel = cv2.cvtColor(u_channel, cv2.COLOR_GRAY2BGR)
+        v_channel = cv2.cvtColor(v_channel, cv2.COLOR_GRAY2BGR)
+
+        out_mask_blur = cv2.GaussianBlur(out_mask, (1, 51), 0)
+        
+        # output_frame = np.append(y_channel, u_channel, axis=1)
+        output_frame = np.append(out_mask, output, axis=1)
+        # output_frame = np.append(output, y_channel, axis=1)
+        # output_frame = np.append(blurred, y_channel, axis=1)
         global shape
         out_h, out_w, _ = output_frame.shape
         shape = (out_w, out_h)
@@ -791,10 +807,16 @@ def main():
     # set camera captura settings
     video = cv2.VideoCapture(0)
     video.set(cv2.CAP_PROP_FPS, 120)
+
+    # SHIT
+    # video.set(cv2.CAP_PROP_CONVERT_RGB, 0)  # Disable automatic RGB conversion
+    video.set(cv2.CAP_PROP_FORMAT, cv2.CV_8UC1)
     # video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     # video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
     retval, image = video.read()
+
+    image = cv2.convertScaleAbs(image, alpha=10, beta=10)
     image_ts = time.time_ns()
     last_image_ts = 0
 
