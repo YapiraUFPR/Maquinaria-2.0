@@ -143,8 +143,8 @@ MAX_CONTOUR_VERTICES = 65
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 60.0
-LINEAR_SPEED_ON_CURVE = 35.0
-LINEAR_SPEED_ON_LOSS = 20.0
+LINEAR_SPEED_ON_CURVE = 45.0
+LINEAR_SPEED_ON_LOSS = 30.0
 
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
@@ -152,7 +152,7 @@ LINEAR_SPEED_ON_LOSS = 20.0
 # KD = 500 / 1000
 # KD = 0.45
 KP = 0.43
-KD = 0.65
+KD = 0.5
 # KD = 0.50
 ALPHA = 1
 BETA = 0
@@ -590,9 +590,10 @@ def process_frame(image_input, last_res_v):
         just_seen_line = True
         # error = new_error
         P = float(error) * KP
-        D = (float(error_deriv - last_error_deriv) * KD) / (image_ts - last_image_ts)
-        D *= 100000
-        print(P, D)
+        D = (float(error_deriv - last_error_deriv) * KD) / ((image_ts - last_image_ts)/1e7)
+
+        # print((image_ts - last_image_ts)/1e7)
+        # print(P, D)
         angular = P + D
 
     else:
