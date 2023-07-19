@@ -151,8 +151,8 @@ LINEAR_SPEED_ON_LOSS = 30.0
 # KP = 180 / 1000
 # KD = 500 / 1000
 # KD = 0.45
-KP = 0.45
-KD = 0.6
+KP = 0.35
+KD = 0.45
 # KD = 0.50
 ALPHA = 1
 BETA = 0
@@ -175,8 +175,8 @@ NO_MOVEMENT_FRAMES = 3
 lower_bgr_values = np.array([40, 40, 40])
 upper_bgr_values = np.array([255, 255, 255])
 
-lower_hsv_values = np.array([0, 0, 60])
-upper_hsv_values = np.array([180, 90, 255])
+# lower_hsv_values = np.array([0, 0, 60])
+# upper_hsv_values = np.array([180, 50, 255])
 
 RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
@@ -362,7 +362,7 @@ def get_contour_data(mask, out, previous_pos):
 
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=1)
+    # mask = cv2.erode(mask, kernel, iterations=1)
 
     # get a list of contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -544,12 +544,12 @@ def process_frame(image_input, last_res_v):
 
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
-    mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
+    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
-    output = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
+    output = image
     line = get_contour_data(
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
@@ -868,10 +868,10 @@ def main():
                 interpolation=cv2.INTER_LINEAR,
             )
             corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
-            hsv_img = cv2.cvtColor(corrected, cv2.COLOR_BGR2HSV)
-            # scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=30)
+            scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=10)
+            # hsv_img = cv2.cvtColor(scaled, cv2.COLOR_BGR2HSV)
 
-            last_res_v = process_frame(hsv_img, last_res_v)
+            last_res_v = process_frame(scaled, last_res_v)
             retval, image = video.read()
             last_image_ts = image_ts
             image_ts = time.time_ns()
