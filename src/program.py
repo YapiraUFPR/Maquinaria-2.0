@@ -175,6 +175,9 @@ NO_MOVEMENT_FRAMES = 3
 lower_bgr_values = np.array([40, 40, 40])
 upper_bgr_values = np.array([255, 255, 255])
 
+lower_hsv_values = np.array([0, 0, 60])
+upper_hsv_values = np.array([180, 90, 255])
+
 RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
 
@@ -541,11 +544,12 @@ def process_frame(image_input, last_res_v):
 
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on the cropped part of the output image
-    output = image
+    output = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
     line = get_contour_data(
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
@@ -864,9 +868,10 @@ def main():
                 interpolation=cv2.INTER_LINEAR,
             )
             corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
-            scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=30)
+            hsv_img = cv2.cvtColor(corrected, cv2.COLOR_BGR2HSV)
+            # scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=30)
 
-            last_res_v = process_frame(corrected, last_res_v)
+            last_res_v = process_frame(hsv_img, last_res_v)
             retval, image = video.read()
             last_image_ts = image_ts
             image_ts = time.time_ns()
