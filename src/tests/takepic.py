@@ -1,4 +1,5 @@
 import cv2
+from time import sleep
 
 capture = cv2.VideoCapture(0)
 
