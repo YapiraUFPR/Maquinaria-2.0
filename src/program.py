@@ -143,7 +143,7 @@ MAX_CONTOUR_VERTICES = 65
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 60.0
-LINEAR_SPEED_ON_CURVE = 45.0
+LINEAR_SPEED_ON_CURVE = 40.0
 LINEAR_SPEED_ON_LOSS = 30.0
 
 # Proportional constant to be applied on speed when turning
@@ -151,8 +151,8 @@ LINEAR_SPEED_ON_LOSS = 30.0
 # KP = 180 / 1000
 # KD = 500 / 1000
 # KD = 0.45
-KP = 0.4
-KD = 0.5
+KP = 0.45
+KD = 0.6
 # KD = 0.50
 ALPHA = 1
 BETA = 0
@@ -359,7 +359,7 @@ def get_contour_data(mask, out, previous_pos):
 
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
-    # mask = cv2.erode(mask, kernel, iterations=1)
+    mask = cv2.erode(mask, kernel, iterations=1)
 
     # get a list of contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -590,7 +590,9 @@ def process_frame(image_input, last_res_v):
         just_seen_line = True
         # error = new_error
         P = float(error) * KP
-        D = (float(error_deriv - last_error_deriv) * KD) / ((image_ts - last_image_ts)/1e7)
+        D = (float(error_deriv - last_error_deriv) * KD) / (
+            (image_ts - last_image_ts) / 1e7
+        )
 
         # print((image_ts - last_image_ts)/1e7)
         # print(P, D)
@@ -790,7 +792,7 @@ def main():
 
     # set camera captura settings
     video = cv2.VideoCapture(0)
-    video.set(cv2.CAP_PROP_FPS, 120)
+    video.set(cv2.CAP_PROP_FPS, 90)
     # video.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     # video.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
 
@@ -862,6 +864,7 @@ def main():
                 interpolation=cv2.INTER_LINEAR,
             )
             corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
+            scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=30)
 
             last_res_v = process_frame(corrected, last_res_v)
             retval, image = video.read()
