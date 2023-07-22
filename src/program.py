@@ -64,8 +64,8 @@ RPM = 800
 RADIUS_WHEEL = 1.6  # cm
 STATIC_COEFICIENT = 1
 AXIS_DISTANCE = 10  # cm
-A = 1
-B = 1
+A = 1.0574
+B = -3.2959
 MAP_FNAME = "map.json"
 
 # pins setup
@@ -594,9 +594,9 @@ def process_frame(image_input, last_res_v):
         just_seen_line = True
         # error = new_error
         P = float(error) * KP
-        D = (float(error_deriv - last_error_deriv) * KD) / (
-            (image_ts - last_image_ts) / 1e7
-        )
+        D = (float(error_deriv - last_error_deriv) * KD) # / (
+        #     (image_ts - last_image_ts) / 1e7
+        # )
 
         # print((image_ts - last_image_ts)/1e7)
         # print(P, D)
