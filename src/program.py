@@ -138,7 +138,8 @@ MIN_AREA = 400
 MIN_AREA_TRACK = 1750
 # MIN_AREA_TRACK = 9500
 
-MAX_CONTOUR_VERTICES = 65
+# MAX_CONTOUR_VERTICES = 65
+MAX_CONTOUR_VERTICES = 25
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
@@ -172,7 +173,7 @@ LOSS_FACTOR = 1.2
 NO_MOVEMENT_FRAMES = 3
 
 # BGR values to filter only the selected color range
-lower_bgr_values = np.array([40, 40, 40])
+lower_bgr_values = np.array([80, 80, 80])
 upper_bgr_values = np.array([255, 255, 255])
 
 # lower_hsv_values = np.array([0, 0, 60])
@@ -384,7 +385,7 @@ def get_contour_data(mask, out, previous_pos):
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
 
-            contour_vertices = len(cv2.approxPolyDP(contour, 2.5, True))
+            contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
             # print("vertices: ", contour_vertices)
 
             if M["m00"] < MIN_AREA:
