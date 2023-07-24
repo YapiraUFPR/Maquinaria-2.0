@@ -62,7 +62,7 @@ args = parser.parse_args()
 STEPS_NUMBER = 7 * 20
 RPM = 800
 RADIUS_WHEEL = 1.6  # cm
-STATIC_COEFICIENT = 1
+STATIC_COEFICIENT = 1.7320508075688772
 AXIS_DISTANCE = 10  # cm
 A = 1.0574
 B = -3.2959
@@ -101,10 +101,9 @@ last_error_deriv = 0
 total_distance = 0
 no_movement_count = 0
 just_seen_line = False
-read_start_mark = False
-ignore_mark_countdown = None
-should_ignore_mark = False
+left_mark_buffer_count = 0
 right_mark_buffer_count = 0
+right_mark_count = 0
 should_stop_for_mark = False
 should_move = False
 should_record = False
@@ -135,16 +134,18 @@ MIN_AREA = 400
 
 # Minimum size for a contour to be considered part of the track
 # MIN_AREA_TRACK = 17500 // RESIZE_FACTOR * 3
-MIN_AREA_TRACK = 1750
+# MIN_AREA_TRACK = 2000
+MIN_AREA_TRACK = 1500
 # MIN_AREA_TRACK = 9500
 
 # MAX_CONTOUR_VERTICES = 65
 MAX_CONTOUR_VERTICES = 25
+LINE_CONTOUR_VERTICES = 5
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
 LINEAR_SPEED = 60.0
-LINEAR_SPEED_ON_CURVE = 40.0
+LINEAR_SPEED_ON_CURVE = 30.0
 LINEAR_SPEED_ON_LOSS = 30.0
 
 # Proportional constant to be applied on speed when turning
@@ -152,8 +153,8 @@ LINEAR_SPEED_ON_LOSS = 30.0
 # KP = 180 / 1000
 # KD = 500 / 1000
 # KD = 0.45
-KP = 0.35
-KD = 0.45
+KP = 0.45
+KD = 0.50                                                                                                                                                                                               
 # KD = 0.50
 ALPHA = 1
 BETA = 0
@@ -356,11 +357,6 @@ def get_contour_data(mask, out, previous_pos):
     and draw all contours on 'out' image
     """
 
-    global should_map
-    global track_map
-    global right_mark_buffer_count
-    global right_mark_count
-
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
     # mask = cv2.erode(mask, kernel, iterations=1)
@@ -381,6 +377,7 @@ def get_contour_data(mask, out, previous_pos):
 
     while not over:
         saw_right_mark = False
+        saw_left_mark = False 
         for contour in contours:
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
@@ -395,6 +392,8 @@ def get_contour_data(mask, out, previous_pos):
             if (contour_vertices < MAX_CONTOUR_VERTICES) and (
                 M["m00"] > MIN_AREA_TRACK
             ):
+            # IDEIA: filter using bouding rectangle
+
                 line["valid"] = True
 
             # Contour is part of the track
@@ -434,7 +433,7 @@ def get_contour_data(mask, out, previous_pos):
 
             # check if contour is a crossing
             cx, cy, cw, ch = cv2.boundingRect(contour)
-            line["is_crossing"] = cw >= width and ch >= height and cx == 0 and cy == 0
+            line["is_crossing"] = cw >= (width - 10) and ch >= (height - 10) and cx <= 10 and cy <= 10
 
             line["area"] = M["m00"]
             line["len"] = contour_vertices
@@ -443,7 +442,48 @@ def get_contour_data(mask, out, previous_pos):
             # print(f"circle at {x, y}")
             cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
 
-            if not line["valid"]:
+            if not line["valid"] and contour_vertices < LINE_CONTOUR_VERTICES:
+                # plot the area in green
+                cv2.drawContours(out, contour, -1, (0, 255, 0), 1)
+                cv2.putText(
+                    out,
+                    f"{contour_vertices}-{M['m00']}",
+                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    2 / (RESIZE_FACTOR / 3),
+                    (0, 0, 255),
+                    1,
+                )
+
+
+                global should_map
+                global track_map
+                global left_mark_buffer_count
+                global right_mark_buffer_count
+                global right_mark_count
+
+                if (line["x"] < (width//2)):
+                    saw_left_mark = True
+                    # if contour is a right mark append to map
+                    if should_map and left_mark_buffer_count == 0:
+                        track_map.append_map()
+                        print("Saw left mark")
+
+                    # saw a right mark recently
+                    if left_mark_buffer_count < 5:
+                        left_mark_buffer_count += 1
+                
+                else:
+                    saw_right_mark = True
+
+                    if right_mark_buffer_count == 0:
+                        right_mark_count += 1
+                        print("Saw right mark")
+
+                    # saw a right mark recently
+                    if right_mark_buffer_count < 5:
+                        right_mark_buffer_count += 1
+            else:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 1)
                 cv2.putText(
@@ -456,15 +496,8 @@ def get_contour_data(mask, out, previous_pos):
                     1,
                 )
 
-                saw_right_mark = True
-                # if contour is a right mark append to map
-                if should_map and right_mark_buffer_count == 0:
-                    track_map.append_map()
-
-                # saw a right mark recently
-                if right_mark_buffer_count < 5:
-                    right_mark_buffer_count += 1
-
+        if not saw_left_mark:
+            left_mark_buffer_count -= 1
         if not saw_right_mark:
             right_mark_buffer_count -= 1
 
@@ -509,7 +542,7 @@ def process_frame(image_input, last_res_v):
     global image_ts
     global last_image_ts
     global just_seen_line
-    global right_mark_buffer_count
+    global left_mark_buffer_count
 
     global should_move
     global should_stop
@@ -637,25 +670,18 @@ def process_frame(image_input, last_res_v):
             print(f"STOPPED AT {total_distance} centimetres.")
 
     # check line sensor
-    global read_start_mark
     global should_stop_for_mark
-    global ignore_mark_countdown
-    global should_ignore_mark
-    global line_sensor_reading
+    global right_mark_count
     if should_move and should_stop_for_mark:
-        if line_sensor_reading:
-            print(error < 30, should_ignore_mark, read_start_mark)
         if (
             error < 30
-            and not should_ignore_mark
-            and read_start_mark
-            and line_sensor_reading
+            and right_mark_count >= 2
         ):
             should_stop = True
             runtime = datetime.now() + timedelta(milliseconds=1500)
             print(f"READ STOP MARK")
 
-        if not read_start_mark and line_sensor_reading:
+        if not read_start_mark and right_mark_reading:
             read_start_mark = True
             ignore_mark_countdown = datetime.now()
             print("READ START MARK")
@@ -870,10 +896,10 @@ def main():
             image = cv2.resize(
                 image,
                 (width // RESIZE_FACTOR, height // RESIZE_FACTOR),
-                interpolation=cv2.INTER_LINEAR,
+                interpolation=cv2.INTER_CUBIC,
             )
-            corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
-            scaled = cv2.convertScaleAbs(corrected, alpha=1.5, beta=10)
+            # corrected = cv2.undistort(image, mtx, dist, None, newcameramtx)
+            scaled = cv2.convertScaleAbs(image, alpha=1.5, beta=10)
             # hsv_img = cv2.cvtColor(scaled, cv2.COLOR_BGR2HSV)
 
             last_res_v = process_frame(scaled, last_res_v)
