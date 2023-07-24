@@ -423,7 +423,10 @@ def get_contour_data(mask, out, previous_pos):
             x2 = x1 + vx
 
             y = line["y"] - 20
-            x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
+            if ((x2 - x1) == 0):
+                x = width//2
+            else:
+                x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
             if x < 0 or x > width:
                 x = line["x"]
 
@@ -542,10 +545,11 @@ def process_frame(image_input, last_res_v):
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
     # hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    _,mask = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
