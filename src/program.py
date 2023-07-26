@@ -20,6 +20,7 @@ import csv
 from os.path import exists
 from os import makedirs
 import pickle
+import json
 
 # init arg parser
 parser = argparse.ArgumentParser()
@@ -52,6 +53,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "-um", "--usemap", metavar="map_file", help="Use map to follow the line"
+)
+parser.add_argument(
+    "-f", "--file", metavar="store_true", default=None, type=str, help="Load file with parameters"
 )
 args = parser.parse_args()
 
@@ -130,31 +134,31 @@ last_image_ts = 0
 RESIZE_FACTOR = 3
 # Minimum size for a contour to be considered anything
 # MIN_AREA = 5000
-MIN_AREA = 400
+min_area = 400
 
 # Minimum size for a contour to be considered part of the track
 # MIN_AREA_TRACK = 17500 // RESIZE_FACTOR * 3
 # MIN_AREA_TRACK = 2000
-MIN_AREA_TRACK = 1500
+min_area_track = 1500
 # MIN_AREA_TRACK = 9500
 
 # MAX_CONTOUR_VERTICES = 65
-MAX_CONTOUR_VERTICES = 25
-LINE_CONTOUR_VERTICES = 5
+max_contour_vertices = 25
+MARK_CONTOUR_VERTICES = 5
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
-LINEAR_SPEED = 60.0
-LINEAR_SPEED_ON_CURVE = 30.0
-LINEAR_SPEED_ON_LOSS = 30.0
+linear_speed = 60.0
+linear_speed_on_curve = 30.0
+linear_speed_on_loss = 30.0
 
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
 # KP = 180 / 1000
 # KD = 500 / 1000
 # KD = 0.45
-KP = 0.45
-KD = 0.50                                                                                                                                                                                               
+kp = 0.45
+kd = 0.50                                                                                                                                                                                               
 # KD = 0.50
 ALPHA = 1
 BETA = 0
@@ -186,6 +190,37 @@ OUTPUT_FOLDER = "../outputs"
 ############################ CALLBACKS ############################
 ###################################################################
 
+def load_file_callback(filename):
+    global kd
+    global kp
+
+    global linear_speed
+    global linear_speed_on_curve
+    global linear_speed_on_loss
+
+    global lower_bgr_values
+    global upper_bgr_values
+
+    global max_contour_vertices
+    global min_area
+    global min_area_track
+
+    with open(filename, "r") as f:
+    
+        json_dict = json.load(f)
+        print("LOADED")
+        print(json_dict)
+
+        kd = json_dict["KD"]
+        kp = json_dict["KP"]
+        linear_speed = json_dict["LINEAR_SPEED"]
+        linear_speed_on_curve = json_dict["LINEAR_SPEED_ON_CURVE"]
+        linear_speed_on_loss = json_dict["LINEAR_SPEED_ON_LOSS"]
+        lower_bgr_values = np.array(json_dict["lower_bgr_values"])
+        upper_bgr_values = np.array(json_dict["upper_bgr_values"])
+        max_contour_vertices = json_dict["MAX_CONTOUR_VERTICES"]
+        min_area_track = json_dict["MIN_AREA_TRACK"]
+        min_area = json_dict["MIN_AREA"]
 
 def show_callback():
     global should_show
@@ -288,7 +323,7 @@ def map_callback(load=False):
 
     should_map = True
     track_map = TrackMap(
-        encoder_mr, encoder_ml, A, B, LINEAR_SPEED, STATIC_COEFICIENT, AXIS_DISTANCE
+        encoder_mr, encoder_ml, A, B, linear_speed, STATIC_COEFICIENT, AXIS_DISTANCE
     )
     if load:
         track_map.from_file(MAP_FNAME)
@@ -357,6 +392,13 @@ def get_contour_data(mask, out, previous_pos):
     and draw all contours on 'out' image
     """
 
+    global lower_bgr_values
+    global upper_bgr_values
+
+    global max_contour_vertices
+    global min_area
+    global min_area_track
+
     # erode image (filter excessive brightness noise)
     kernel = np.ones((5, 5), np.uint8)
     # mask = cv2.erode(mask, kernel, iterations=1)
@@ -385,12 +427,12 @@ def get_contour_data(mask, out, previous_pos):
             contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
             # print("vertices: ", contour_vertices)
 
-            if M["m00"] < MIN_AREA:
+            if M["m00"] < min_area:
                 continue
 
             line["valid"] = False
-            if (contour_vertices < MAX_CONTOUR_VERTICES) and (
-                M["m00"] > MIN_AREA_TRACK
+            if (contour_vertices < max_contour_vertices) and (
+                M["m00"] > min_area_track
             ):
             # IDEIA: filter using bouding rectangle
 
@@ -442,7 +484,7 @@ def get_contour_data(mask, out, previous_pos):
             # print(f"circle at {x, y}")
             cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
 
-            if not line["valid"] and contour_vertices < LINE_CONTOUR_VERTICES:
+            if not line["valid"] and contour_vertices < MARK_CONTOUR_VERTICES:
                 # plot the area in green
                 cv2.drawContours(out, contour, -1, (0, 255, 0), 1)
                 cv2.putText(
@@ -483,7 +525,7 @@ def get_contour_data(mask, out, previous_pos):
                     # saw a right mark recently
                     if right_mark_buffer_count < 5:
                         right_mark_buffer_count += 1
-            else:
+            elif not line["valid"]:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 1)
                 cv2.putText(
@@ -495,6 +537,18 @@ def get_contour_data(mask, out, previous_pos):
                     (255, 0, 255),
                     1,
                 )
+            else:
+                # plot the area in pink
+                cv2.drawContours(out, contour, -1, (255, 0, 0), 1)
+                cv2.putText(
+                    out,
+                    f"{contour_vertices}-{M['m00']}",
+                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    2 / (RESIZE_FACTOR / 3),
+                    (255, 0, 255),
+                    1,
+                ) 
 
         if not saw_left_mark:
             left_mark_buffer_count -= 1
@@ -564,6 +618,20 @@ def process_frame(image_input, last_res_v):
 
     global frame_count
 
+    global kd
+    global kp
+
+    global linear_speed
+    global linear_speed_on_curve
+    global linear_speed_on_loss
+
+    global lower_bgr_values
+    global upper_bgr_values
+
+    global max_contour_vertices
+    global min_area
+    global min_area_track
+
     frame_count += 1
 
     height, width, _ = image_input.shape
@@ -578,11 +646,11 @@ def process_frame(image_input, last_res_v):
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
     # hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    _,mask = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    # gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    # _,mask = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
@@ -621,9 +689,9 @@ def process_frame(image_input, last_res_v):
         #     linear = track_map.track_map[mark_count].pwm_speed
 
         if abs(error) > CURVE_ERROR_THRH:
-            linear = LINEAR_SPEED_ON_CURVE
+            linear = linear_speed_on_curve
         else:
-            linear = LINEAR_SPEED
+            linear = linear_speed
 
         # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
         #     linear = LINEAR_SPEED_ON_LOSS
@@ -631,8 +699,8 @@ def process_frame(image_input, last_res_v):
 
         just_seen_line = True
         # error = new_error
-        P = float(error) * KP
-        D = (float(error_deriv - last_error_deriv) * KD) # / (
+        P = float(error) * kp
+        D = (float(error_deriv - last_error_deriv) * kd) # / (
         #     (image_ts - last_image_ts) / 1e7
         # )
 
@@ -653,7 +721,7 @@ def process_frame(image_input, last_res_v):
             error_deriv *= LOSS_FACTOR
             angular *= LOSS_FACTOR
 
-        linear = LINEAR_SPEED_ON_LOSS
+        linear = linear_speed_on_loss
 
     global runtime
 
@@ -878,6 +946,9 @@ def main():
     if args.usemap != None:
         map_callback(load=True)
     ##############################
+
+    if args.file != None:
+        load_file_callback(args.file)
 
     last_res_v = {"left": 0, "right": 0}
 
