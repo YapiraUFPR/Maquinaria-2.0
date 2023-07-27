@@ -184,6 +184,7 @@ upper_bgr_values = np.array([255, 255, 255])
 # lower_hsv_values = np.array([0, 0, 60])
 # upper_hsv_values = np.array([180, 50, 255])
 
+# RECORD_PERIOD = 3
 RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
 
@@ -241,22 +242,24 @@ def record_callback():
 
 
 def end_record():
-    global should_record
-    global record_frames
-    global shape
-    if should_record:
-        writer = cv2.VideoWriter(
-            f"{OUTPUT_FOLDER}/pov-{datetime.now().minute}.mp4",
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            10,
-            shape,
-        )
-        print(len(record_frames))
-        for frame in record_frames:
-            writer.write(frame)
-        writer.release()
-        print("Finished recording")
-
+    try:
+        global should_record
+        global record_frames
+        global shape
+        if should_record:
+            writer = cv2.VideoWriter(
+                f"{OUTPUT_FOLDER}/pov-{datetime.now().minute}.mp4",
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                30,
+                shape,
+            )
+            print(len(record_frames))
+            for frame in record_frames:
+                writer.write(frame)
+            writer.release()
+            print("Finished recording")
+    except KeyboardInterrupt:
+        pass
 
 def write_callback():
     global should_write
@@ -445,7 +448,7 @@ def get_contour_data(mask, out, previous_pos):
             possible_tracks.append(line)
 
             # plot the amount of vertices in light blue
-            cv2.drawContours(out, contour, -1, (255, 255, 0), 1)
+            cv2.drawContours(out, contour, -1, (255, 255, 0), 2)
             # cv2.putText(out, str(M['m00']), (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])),
             #     cv2.FONT_HERSHEY_PLAIN, 2/(RESIZE_SIZE/3), (100,200,150), 1)
 
@@ -486,7 +489,7 @@ def get_contour_data(mask, out, previous_pos):
 
             if not line["valid"] and contour_vertices < MARK_CONTOUR_VERTICES:
                 # plot the area in green
-                cv2.drawContours(out, contour, -1, (0, 255, 0), 1)
+                cv2.drawContours(out, contour, -1, (0, 255, 0), 2)
                 cv2.putText(
                     out,
                     f"{contour_vertices}-{M['m00']}",
@@ -527,7 +530,7 @@ def get_contour_data(mask, out, previous_pos):
                         right_mark_buffer_count += 1
             elif not line["valid"]:
                 # plot the area in pink
-                cv2.drawContours(out, contour, -1, (255, 0, 255), 1)
+                cv2.drawContours(out, contour, -1, (255, 0, 255), 2)
                 cv2.putText(
                     out,
                     f"{contour_vertices}-{M['m00']}",
@@ -539,7 +542,7 @@ def get_contour_data(mask, out, previous_pos):
                 )
             else:
                 # plot the area in pink
-                cv2.drawContours(out, contour, -1, (255, 0, 0), 1)
+                cv2.drawContours(out, contour, -1, (255, 0, 0), 2)
                 cv2.putText(
                     out,
                     f"{contour_vertices}-{M['m00']}",
@@ -575,7 +578,7 @@ def get_contour_data(mask, out, previous_pos):
         chosen_line = {}
     else:
         chosen_line = min(
-            possible_tracks, key=lambda line: abs(line["x"] - previous_pos)
+            possible_tracks, key=lambda line: np.linalg.norm(line["x"] - previous_pos)
         )
 
     return chosen_line
@@ -651,6 +654,8 @@ def process_frame(image_input, last_res_v):
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
     mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # print(lower_bgr_values)
+    # print(upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
