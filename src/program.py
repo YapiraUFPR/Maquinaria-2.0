@@ -414,7 +414,7 @@ def get_contour_data(mask, out, previous_pos):
     over = False
     tried_once = False
 
-    possible_tracks = []
+    possible_tracks = set()
 
     x = None
 
@@ -440,7 +440,8 @@ def get_contour_data(mask, out, previous_pos):
             # IDEIA: filter using bouding rectangle
 
                 line["valid"] = True
-                possible_tracks.append(line)
+                # possible_tracks.append(line)
+                possible_tracks.add(line)
 
             # Contour is part of the track
             line["x"] = crop_w_start + int(M["m10"] / M["m00"])
@@ -589,7 +590,7 @@ def get_contour_data(mask, out, previous_pos):
             print(f"Previous - {previous_pos}")
             for p in possible_tracks:
                 if p == chosen_line:
-                    print("*")
+                    print("*", end="")
                 print(f"    p - {line['expected_x']} ({line['expected_x'] - previous_pos})")
         #enddebug
 
