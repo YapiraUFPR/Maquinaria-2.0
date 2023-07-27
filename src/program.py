@@ -410,7 +410,6 @@ def get_contour_data(mask, out, previous_pos):
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     mark = {}
-    line = {}
     over = False
     tried_once = False
 
@@ -424,6 +423,7 @@ def get_contour_data(mask, out, previous_pos):
         saw_right_mark = False
         saw_left_mark = False 
         for contour in contours:
+            line = {}
             M = cv2.moments(contour)
             # Search more about Image Moments on Wikipedia :)
 
@@ -432,6 +432,10 @@ def get_contour_data(mask, out, previous_pos):
 
             if M["m00"] < min_area:
                 continue
+
+            # Contour is part of the track
+            line["x"] = crop_w_start + int(M["m10"] / M["m00"])
+            line["y"] = int(M["m01"] / M["m00"])
 
             line["valid"] = False
             if (contour_vertices < max_contour_vertices) and (
@@ -442,10 +446,20 @@ def get_contour_data(mask, out, previous_pos):
                 line["valid"] = True
                 if not line in possible_tracks:
                     possible_tracks.append(line)
+                    # plot the area in BLUE
+                    cv2.drawContours(out, contour, -1, (255, 0, 0), 2)
+                    cv2.putText(
+                        out,
+                        f"{np.linalg.norm(line['x'] - previous_pos)}",
+                        
+                        (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                        cv2.FONT_HERSHEY_PLAIN,
+                        2 / (RESIZE_FACTOR / 3),
+                        (255, 0, 255),
+                        1,
+                    ) 
+                    # cv2.circle(out, (x, y), 3, (45, 50, 255), 5)
 
-            # Contour is part of the track
-            line["x"] = crop_w_start + int(M["m10"] / M["m00"])
-            line["y"] = int(M["m01"] / M["m00"])
 
 
             # plot the amount of vertices in light blue
@@ -468,7 +482,7 @@ def get_contour_data(mask, out, previous_pos):
             x2 = x1 + vx
 
             y = line["y"] - 20
-            if ((x2 - x1) == 0):
+            if (x2 == x1) or (y2 == y1):
                 x = width//2
             else:
                 x = int(x1 + (y - y1) / ((y2 - y1) / (x2 - x1)))
@@ -487,6 +501,7 @@ def get_contour_data(mask, out, previous_pos):
 
             # print(f"circle at {x, y}")
 
+            # if is a side mark
             if not line["valid"] and contour_vertices < MARK_CONTOUR_VERTICES:
                 # plot the area in green
                 cv2.drawContours(out, contour, -1, (0, 255, 0), 2)
@@ -499,7 +514,6 @@ def get_contour_data(mask, out, previous_pos):
                     (0, 0, 255),
                     1,
                 )
-
 
                 global should_map
                 global track_map
@@ -528,7 +542,8 @@ def get_contour_data(mask, out, previous_pos):
                     # saw a right mark recently
                     if right_mark_buffer_count < 5:
                         right_mark_buffer_count += 1
-
+            
+            # is blur or something not relevant
             elif not line["valid"]:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 2)
@@ -541,29 +556,15 @@ def get_contour_data(mask, out, previous_pos):
                     (255, 0, 255),
                     1,
                 )
-            else: # IS THE TRACK
-                # plot the area in BLUE
-                cv2.drawContours(out, contour, -1, (255, 0, 0), 2)
-                cv2.putText(
-                    out,
-                    # f"{contour_vertices}-{M['m00']}",
-                    # f"{contour_vertices}-{M['m00']}",
-                    f"{np.linalg.norm(line['x'] - previous_pos)}",
-                    
-                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
-                    cv2.FONT_HERSHEY_PLAIN,
-                    2 / (RESIZE_FACTOR / 3),
-                    (255, 0, 255),
-                    1,
-                ) 
-                cv2.circle(out, (x, y), 3, (45, 50, 255), 5)
 
         if not saw_left_mark:
             left_mark_buffer_count -= 1
         if not saw_right_mark:
             right_mark_buffer_count -= 1
 
-        if line.get("valid"):
+        # if line.get("valid"):
+        #     over = True
+        if possible_tracks:
             over = True
 
         # Did not find the line. Try eroding more?
