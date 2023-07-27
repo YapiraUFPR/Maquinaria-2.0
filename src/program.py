@@ -665,18 +665,20 @@ def process_frame(image_input, last_res_v):
     # get the bottom part of the image (matrix slicing)
     crop = image[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop]
 
+    red = crop[:, :, 2]
+
     # hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     # gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    # _,mask = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    _,mask = cv2.threshold(red,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     # get a binary picture, where non-zero values represent the line.
     # (filter the color values so only the contour is seen)
-    mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
+    # mask = cv2.inRange(crop, lower_bgr_values, upper_bgr_values)
     # print(lower_bgr_values)
     # print(upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
     # get the centroid of the biggest contour in the picture,
-    # and plot its detail on the cropped part of the output image
+    # and plot its detail on th e cropped part of the output image
     output = image
     line = get_contour_data(
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
