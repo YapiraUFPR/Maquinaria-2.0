@@ -440,12 +440,12 @@ def get_contour_data(mask, out, previous_pos):
             # IDEIA: filter using bouding rectangle
 
                 line["valid"] = True
+                possible_tracks.append(line)
 
             # Contour is part of the track
             line["x"] = crop_w_start + int(M["m10"] / M["m00"])
             line["y"] = int(M["m01"] / M["m00"])
 
-            possible_tracks.append(line)
 
             # plot the amount of vertices in light blue
             cv2.drawContours(out, contour, -1, (255, 255, 0), 2)
@@ -485,7 +485,6 @@ def get_contour_data(mask, out, previous_pos):
             line["expected_x"] = x
 
             # print(f"circle at {x, y}")
-            cv2.circle(out, (x, y), 3, (45, 50, 255), 10)
 
             if not line["valid"] and contour_vertices < MARK_CONTOUR_VERTICES:
                 # plot the area in green
@@ -528,6 +527,7 @@ def get_contour_data(mask, out, previous_pos):
                     # saw a right mark recently
                     if right_mark_buffer_count < 5:
                         right_mark_buffer_count += 1
+
             elif not line["valid"]:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 2)
@@ -540,18 +540,22 @@ def get_contour_data(mask, out, previous_pos):
                     (255, 0, 255),
                     1,
                 )
-            else:
-                # plot the area in pink
+            else: # IS THE TRACK
+                # plot the area in BLUE
                 cv2.drawContours(out, contour, -1, (255, 0, 0), 2)
                 cv2.putText(
                     out,
-                    f"{contour_vertices}-{M['m00']}",
+                    # f"{contour_vertices}-{M['m00']}",
+                    # f"{contour_vertices}-{M['m00']}",
+                    f"{np.linalg.norm(line['x'] - previous_pos)}",
+                    
                     (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
                     cv2.FONT_HERSHEY_PLAIN,
                     2 / (RESIZE_FACTOR / 3),
                     (255, 0, 255),
                     1,
                 ) 
+                cv2.circle(out, (x, y), 3, (45, 50, 255), 5)
 
         if not saw_left_mark:
             left_mark_buffer_count -= 1
@@ -578,8 +582,19 @@ def get_contour_data(mask, out, previous_pos):
         chosen_line = {}
     else:
         chosen_line = min(
-            possible_tracks, key=lambda line: np.linalg.norm(line["x"] - previous_pos)
+            possible_tracks, key=lambda line: np.linalg.norm(line["expected_x"] - previous_pos)
         )
+        #debug
+        if len(possible_tracks) > 1:
+            print(f"Previous - {previous_pos}")
+            for p in possible_tracks:
+                if p == chosen_line:
+                    print("*")
+                print(f"    p - {line['expected_x']} ({line['expected_x'] - previous_pos})")
+        #enddebug
+
+
+        cv2.circle(out, (chosen_line["expected_x"], chosen_line["y"] - 20), 3, (45, 255, 255), 5)
 
     return chosen_line
 
