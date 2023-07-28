@@ -23,7 +23,7 @@ class TrackMap():
     # TO BE CALCULATED
     GRAVITY = 980
 
-    def __init__(self, encoder_right, encoder_left, A, B, speed_limit=100, static_coeficient=sqrt(3), axis_distance=10):
+    def __init__(self, encoder_right, encoder_left, A, B, min_speed=60, speed_limit=100, static_coeficient=sqrt(3), axis_distance=10):
         self.static_coeficient=static_coeficient
         self.axis_distance = axis_distance
 
@@ -31,6 +31,7 @@ class TrackMap():
         self.A = A
         self.B = B
         self.speed_limit = speed_limit
+        self.min_speed = min_speed
 
         self.right_total_distance = 0 
         self.left_total_distance = 0
@@ -55,6 +56,8 @@ class TrackMap():
     def meters2PWM(self, speed):
         if speed == inf:
             return self.speed_limit
+        if speed < self.min_speed:
+            return self.min_speed
 
         return self.A*speed + self.B
     

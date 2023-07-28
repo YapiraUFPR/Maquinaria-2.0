@@ -149,6 +149,7 @@ MARK_CONTOUR_VERTICES = 5
 linear_speed = 60.0
 linear_speed_on_curve = 30.0
 linear_speed_on_loss = 30.0
+speed_limit = 85.0
 
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
@@ -199,6 +200,7 @@ def load_file_callback(filename):
     global linear_speed
     global linear_speed_on_curve
     global linear_speed_on_loss
+    global speed_limit
 
     global lower_bgr_values
     global upper_bgr_values
@@ -218,6 +220,7 @@ def load_file_callback(filename):
         linear_speed = json_dict["LINEAR_SPEED"]
         linear_speed_on_curve = json_dict["LINEAR_SPEED_ON_CURVE"]
         linear_speed_on_loss = json_dict["LINEAR_SPEED_ON_LOSS"]
+        speed_limit = json_dict["SPEED_LIMIT"]
         lower_bgr_values = np.array(json_dict["lower_bgr_values"])
         upper_bgr_values = np.array(json_dict["upper_bgr_values"])
         max_contour_vertices = json_dict["MAX_CONTOUR_VERTICES"]
@@ -325,9 +328,12 @@ def map_callback(load=False):
     global encoder_ml
     global encoder_mr
 
+    global linear_speed
+    global speed_limit 
+
     should_map = True
     track_map = TrackMap(
-        encoder_mr, encoder_ml, A, B, linear_speed, STATIC_COEFICIENT, AXIS_DISTANCE
+        encoder_mr, encoder_ml, A, B, linear_speed, speed_limit, STATIC_COEFICIENT, AXIS_DISTANCE
     )
     if load:
         track_map.from_file(MAP_FNAME)
@@ -387,7 +393,7 @@ def crop_size(height, width):
     # return (2 * height // 6, height, 1 * width // 6, 5 * width // 6)
 
 
-def get_contour_data(mask, mark_mask, out, previous_pos):
+def get_contour_data(mask, out, previous_pos):
     """
     Return the centroid of the largest contour in
     the binary image 'mask' (the line)
@@ -513,13 +519,6 @@ def get_contour_data(mask, mark_mask, out, previous_pos):
                     1,
                 )
 
-        # if not saw_left_mark:
-        #     left_mark_buffer_count -= 1
-        # if not saw_right_mark:
-        #     right_mark_buffer_count -= 1
-
-        # if line.get("valid"):
-        #     over = True
         if possible_tracks:
             over = True
 
@@ -553,11 +552,15 @@ def get_contour_data(mask, mark_mask, out, previous_pos):
 
 
         cv2.circle(out, (chosen_line["expected_x"], chosen_line["y"] - 20), 3, (45, 255, 255), 5)
+    
+    return chosen_line
+
+def check_stop_mark(mask, out):
 
     global should_stop_for_mark
     global saw_right_mark
-    if (not mark_mask is None) and should_stop_for_mark:
-        right_marks, _ = cv2.findContours(mark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if should_stop_for_mark:
+        right_marks, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
         for mark in right_marks: 
             
@@ -595,7 +598,6 @@ def get_contour_data(mask, mark_mask, out, previous_pos):
                 
                 # else:
 
-    return chosen_line
 
 zeros = None
 
@@ -685,14 +687,16 @@ def process_frame(image_input, last_res_v):
 
     if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*TRACK_SIZE):
         mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
+        check_stop_mark(mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on th e cropped part of the output image
     output = image
     line = get_contour_data(
-        mask, mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
+        mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
     # also get the side in which the track mark "is"
+
 
     x = None
 

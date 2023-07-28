@@ -1,2 +1,16 @@
-{"RESIZE_FACTOR": 3, "MIN_AREA": 400, "MIN_AREA_TRACK": 1500, "MAX_CONTOUR_VERTICES": 50, "LINE_CONTOUR_VERTICES": 5, "LINEAR_SPEED": 60.0, "LINEAR_SPEED_ON_CURVE": 40.0, "LINEAR_SPEED_ON_LOSS": 30.0, "KP": 0.45, "KD": 0.9, "lower_bgr_values": [25, 50, 25], "upper_bgr_values": [240, 240, 255]}
+{
+    "RESIZE_FACTOR": 3, 
+    "MIN_AREA": 400, 
+    "MIN_AREA_TRACK": 1500, 
+    "MAX_CONTOUR_VERTICES": 50, 
+    "LINE_CONTOUR_VERTICES": 5, 
+    "LINEAR_SPEED": 60.0, 
+    "LINEAR_SPEED_ON_CURVE": 40.0, 
+    "LINEAR_SPEED_ON_LOSS": 30.0, 
+    "SPEED_LIMIT" : 85,
+    "KP": 0.45, 
+    "KD": 0.9, 
+    "lower_bgr_values": [25, 50, 25], 
+    "upper_bgr_values": [240, 240, 255]
+}
 
