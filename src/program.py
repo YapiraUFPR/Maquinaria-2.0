@@ -105,9 +105,7 @@ last_error_deriv = 0
 total_distance = 0
 no_movement_count = 0
 just_seen_line = False
-left_mark_buffer_count = 0
-right_mark_buffer_count = 0
-right_mark_count = 0
+saw_right_mark = False
 should_stop_for_mark = False
 should_move = False
 should_record = False
@@ -187,6 +185,9 @@ upper_bgr_values = np.array([255, 255, 255])
 # RECORD_PERIOD = 3
 RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
+
+TRACK_SIZE = 2812
+STOP_DISTANCE_FACTOR = 0.82
 
 ############################ CALLBACKS ############################
 ###################################################################
@@ -386,7 +387,7 @@ def crop_size(height, width):
     # return (2 * height // 6, height, 1 * width // 6, 5 * width // 6)
 
 
-def get_contour_data(mask, out, previous_pos):
+def get_contour_data(mask, mark_mask, out, previous_pos):
     """
     Return the centroid of the largest contour in
     the binary image 'mask' (the line)
@@ -420,8 +421,6 @@ def get_contour_data(mask, out, previous_pos):
     height, width, _ = out.shape
 
     while not over:
-        saw_right_mark = False
-        saw_left_mark = False 
         for contour in contours:
             line = {}
             M = cv2.moments(contour)
@@ -500,51 +499,8 @@ def get_contour_data(mask, out, previous_pos):
             line["expected_x"] = x
 
             # print(f"circle at {x, y}")
-
-            # if is a side mark
-            if not line["valid"] and contour_vertices < MARK_CONTOUR_VERTICES:
-                # plot the area in green
-                cv2.drawContours(out, contour, -1, (0, 255, 0), 2)
-                cv2.putText(
-                    out,
-                    f"{contour_vertices}-{M['m00']}",
-                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
-                    cv2.FONT_HERSHEY_PLAIN,
-                    2 / (RESIZE_FACTOR / 3),
-                    (0, 0, 255),
-                    1,
-                )
-
-                global should_map
-                global track_map
-                global left_mark_buffer_count
-                global right_mark_buffer_count
-                global right_mark_count
-
-                if (line["x"] < (width//2)):
-                    saw_left_mark = True
-                    # if contour is a right mark append to map
-                    if should_map and left_mark_buffer_count == 0:
-                        track_map.append_map()
-                        print("Saw left mark")
-
-                    # saw a right mark recently
-                    if left_mark_buffer_count < 5:
-                        left_mark_buffer_count += 1
-                
-                else:
-                    saw_right_mark = True
-
-                    if right_mark_buffer_count == 0:
-                        right_mark_count += 1
-                        print("Saw right mark")
-
-                    # saw a right mark recently
-                    if right_mark_buffer_count < 5:
-                        right_mark_buffer_count += 1
-            
             # is blur or something not relevant
-            elif not line["valid"]:
+            if not line["valid"]:
                 # plot the area in pink
                 cv2.drawContours(out, contour, -1, (255, 0, 255), 2)
                 cv2.putText(
@@ -557,10 +513,10 @@ def get_contour_data(mask, out, previous_pos):
                     1,
                 )
 
-        if not saw_left_mark:
-            left_mark_buffer_count -= 1
-        if not saw_right_mark:
-            right_mark_buffer_count -= 1
+        # if not saw_left_mark:
+        #     left_mark_buffer_count -= 1
+        # if not saw_right_mark:
+        #     right_mark_buffer_count -= 1
 
         # if line.get("valid"):
         #     over = True
@@ -586,20 +542,62 @@ def get_contour_data(mask, out, previous_pos):
         chosen_line = min(
             possible_tracks, key=lambda line: np.linalg.norm(line["expected_x"] - previous_pos)
         )
-        #debug
-        if len(possible_tracks) > 1:
-            print(f"Previous - {previous_pos}")
-            for p in possible_tracks:
-                if p == chosen_line:
-                    print("*", end="")
-                print(f"    p - {line['expected_x']} ({line['expected_x'] - previous_pos})")
-        #enddebug
+        # #debug
+        # if len(possible_tracks) > 1:
+        #     print(f"Previous - {previous_pos}")
+        #     for p in possible_tracks:
+        #         if p == chosen_line:
+        #             print("*", end="")
+        #         print(f"    p - {line['expected_x']} ({line['expected_x'] - previous_pos})")
+        # #enddebug
 
 
         cv2.circle(out, (chosen_line["expected_x"], chosen_line["y"] - 20), 3, (45, 255, 255), 5)
 
+    global should_stop_for_mark
+    global saw_right_mark
+    if (not mark_mask is None) and should_stop_for_mark:
+        right_marks, _ = cv2.findContours(mark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        for mark in right_marks: 
+            
+            M = cv2.moments(mark)
+            # Search more about Image Moments on Wikipedia :)
+
+            contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
+            # print("vertices: ", contour_vertices):
+
+            if (min_area < M["m00"] < min_area_track) and contour_vertices < MARK_CONTOUR_VERTICES:
+                # plot the area in purple
+                cv2.drawContours(out, contour, -1, (0, 128, 128), 2)
+                cv2.putText(
+                    out,
+                    f"{contour_vertices}-{M['m00']}",
+                    (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    2 / (RESIZE_FACTOR / 3),
+                    (0, 0, 255),
+                    1,
+                )
+                print("SAW STOP MARK")
+                saw_right_mark = True
+
+                # if (line["x"] < (width//2)):
+                #     saw_left_mark = True
+                #     # if contour is a right mark append to map
+                #     if should_map and left_mark_buffer_count == 0:
+                #         track_map.append_map()
+                #         print("Saw left mark")
+
+                #     # saw a right mark recently
+                #     if left_mark_buffer_count < 5:
+                #         left_mark_buffer_count += 1
+                
+                # else:
+
     return chosen_line
 
+zeros = None
 
 def process_frame(image_input, last_res_v):
     """
@@ -625,7 +623,6 @@ def process_frame(image_input, last_res_v):
     global should_use_map
 
     global track_length
-    global right_mark_count
     global init_time
     global lost
     global no_movement_count
@@ -677,11 +674,23 @@ def process_frame(image_input, last_res_v):
     # print(upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
+    mark_mask = None
+    ch, cw, _ = crop.shape
+
+    global should_stop_for_mark
+    global zeros
+    if zeros is None:
+        # zeros = np.zeros([ch, 2*cw//3, 3], dtype=np.uint8)
+        zeros = np.zeros_like(crop[:, 2*cw//3:], dtype=np.uint8)
+
+    if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*TRACK_SIZE):
+        mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
+
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on th e cropped part of the output image
     output = image
     line = get_contour_data(
-        mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
+        mask, mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
     # also get the side in which the track mark "is"
 
@@ -751,7 +760,7 @@ def process_frame(image_input, last_res_v):
 
     # Check for final countdown
     if should_move and should_stop:
-        if (datetime.now() - init_time_iso) >= runtime:
+        if datetime.now() >= runtime:
             should_move = False
             print(f"STOPPED AT {datetime.now()}")
 
@@ -762,27 +771,13 @@ def process_frame(image_input, last_res_v):
             print(f"STOPPED AT {total_distance} centimetres.")
 
     # check line sensor
-    global should_stop_for_mark
-    global right_mark_count
-    if should_move and should_stop_for_mark:
-        if (
-            error < 30
-            and right_mark_count >= 2
-        ):
+    global saw_right_mark
+    if not should_stop and should_move and should_stop_for_mark:
+        if saw_right_mark:
             should_stop = True
             runtime = datetime.now() + timedelta(milliseconds=1500)
             print(f"READ STOP MARK")
-
-        if not read_start_mark and right_mark_reading:
-            read_start_mark = True
-            ignore_mark_countdown = datetime.now()
-            print("READ START MARK")
-
-        should_ignore_mark = not (
-            read_start_mark
-            and (datetime.now() - ignore_mark_countdown >= timedelta(seconds=17))
-        )
-
+    
     # Determine the speed to turn and get the line in the center of the camera.
     # angular = float(error) * -KP
 
@@ -874,7 +869,19 @@ def process_frame(image_input, last_res_v):
         out_mask[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop] = cv2.cvtColor(
             mask, cv2.COLOR_GRAY2BGR
         )
-        output_frame = np.append(output, out_mask, axis=1)
+        # output_frame = np.append(output, out_mask, axis=1)
+        if mark_mask is None:
+            mark_mask = zeros
+        else:
+            mark_mask = cv2.cvtColor(mark_mask, cv2.COLOR_GRAY2BGR)
+
+        height_diff = out_mask.shape[0] - mark_mask.shape[0]
+        top_padding = abs(height_diff) // 2
+        bottom_padding = abs(height_diff) - top_padding
+        # Use cv2.copyMakeBorder to add the padding to 'mark_mask'
+        mark_mask_padded = cv2.copyMakeBorder(mark_mask, top_padding, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=0)
+        output_frame = np.hstack((mark_mask_padded, output, out_mask))
+
         global shape
         out_h, out_w, _ = output_frame.shape
         shape = (out_w, out_h)
