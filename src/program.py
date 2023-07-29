@@ -567,12 +567,12 @@ def check_stop_mark(mask, out):
             M = cv2.moments(mark)
             # Search more about Image Moments on Wikipedia :)
 
-            contour_vertices = len(cv2.approxPolyDP(contour, 1.5, True))
+            contour_vertices = len(cv2.approxPolyDP(mark, 1.5, True))
             # print("vertices: ", contour_vertices):
 
             if (min_area < M["m00"] < min_area_track) and contour_vertices < MARK_CONTOUR_VERTICES:
                 # plot the area in purple
-                cv2.drawContours(out, contour, -1, (0, 128, 128), 2)
+                cv2.drawContours(out, mark, -1, (255, 0, 255), 2)
                 cv2.putText(
                     out,
                     f"{contour_vertices}-{M['m00']}",
@@ -676,6 +676,8 @@ def process_frame(image_input, last_res_v):
     # print(upper_bgr_values)
     # mask = cv2.inRange(crop, lower_hsv_values, upper_hsv_values)
 
+    output = image 
+
     mark_mask = None
     ch, cw, _ = crop.shape
 
@@ -685,13 +687,13 @@ def process_frame(image_input, last_res_v):
         # zeros = np.zeros([ch, 2*cw//3, 3], dtype=np.uint8)
         zeros = np.zeros_like(crop[:, 2*cw//3:], dtype=np.uint8)
 
-    if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*TRACK_SIZE):
-        mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
+    if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*0):
+        # mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
+        mark_mask = mask[:, 2*cw//3:]
         check_stop_mark(mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on th e cropped part of the output image
-    output = image
     line = get_contour_data(
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
@@ -779,7 +781,7 @@ def process_frame(image_input, last_res_v):
     if not should_stop and should_move and should_stop_for_mark:
         if saw_right_mark:
             should_stop = True
-            runtime = datetime.now() + timedelta(milliseconds=1500)
+            runtime = datetime.now() + timedelta(milliseconds=50)
             print(f"READ STOP MARK")
     
     # Determine the speed to turn and get the line in the center of the camera.
