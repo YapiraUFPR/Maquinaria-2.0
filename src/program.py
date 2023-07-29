@@ -4,7 +4,7 @@ A program used to control a differential drive robot with a camera,
 so it follows the line in a Robotrace style track.
 You may change the parameters BECAUSE IT IS NECESSARY.
 """
-__author__ = "Gabriel Hishida, Gabriel Pontarolo, Tiago Serique, Isadora Botassari and Maite Aska"
+__author__ = "Gabriel Hishida, Gabriel Pontarolo, Allan Cedric, Tiago Serique, Isadora Botassari and Maite Aska"
 
 import numpy as np
 import cv2
@@ -52,7 +52,7 @@ parser.add_argument(
     "-m", "--map", action="store_true", help="Create a map of the track"
 )
 parser.add_argument(
-    "-um", "--usemap", metavar="map_file", help="Use map to follow the line"
+    "-um", "--usemap", metavar="map_file", action="store", help="Use map to follow the line"
 )
 parser.add_argument(
     "-f", "--file", metavar="store_true", default=None, type=str, help="Load file with parameters"
@@ -67,7 +67,7 @@ STEPS_NUMBER = 7 * 20
 RPM = 800
 RADIUS_WHEEL = 1.6  # cm
 STATIC_COEFICIENT = 1.7320508075688772
-AXIS_DISTANCE = 10  # cm
+AXIS_DISTANCE = 14.5  # cm
 A = 1.0574
 B = -3.2959
 MAP_FNAME = "map.json"
@@ -142,7 +142,7 @@ min_area_track = 1500
 
 # MAX_CONTOUR_VERTICES = 65
 max_contour_vertices = 25
-MARK_CONTOUR_VERTICES = 5
+mark_contour_vertices = 5
 
 # Robot's speed when following the line
 # LINEAR_SPEED = 14.0
@@ -150,6 +150,8 @@ linear_speed = 60.0
 linear_speed_on_curve = 30.0
 linear_speed_on_loss = 30.0
 speed_limit = 85.0
+
+left_mark_buffer_count = 0
 
 # Proportional constant to be applied on speed when turning
 # (Multiplied by the error value)
@@ -187,7 +189,7 @@ upper_bgr_values = np.array([255, 255, 255])
 RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
 
-TRACK_SIZE = 2812
+track_size = 2812
 STOP_DISTANCE_FACTOR = 0.82
 
 ############################ CALLBACKS ############################
@@ -205,9 +207,12 @@ def load_file_callback(filename):
     global lower_bgr_values
     global upper_bgr_values
 
+    global mark_contour_vertices
     global max_contour_vertices
     global min_area
     global min_area_track
+
+    global track_size
 
     with open(filename, "r") as f:
     
@@ -224,8 +229,10 @@ def load_file_callback(filename):
         lower_bgr_values = np.array(json_dict["lower_bgr_values"])
         upper_bgr_values = np.array(json_dict["upper_bgr_values"])
         max_contour_vertices = json_dict["MAX_CONTOUR_VERTICES"]
+        mark_contour_vertices = json_dict["MARK_CONTOUR_VERTICES"]
         min_area_track = json_dict["MIN_AREA_TRACK"]
         min_area = json_dict["MIN_AREA"]
+        track_size = json_dict["TRACK_SIZE"]
 
 def show_callback():
     global should_show
@@ -264,6 +271,12 @@ def end_record():
             print("Finished recording")
     except KeyboardInterrupt:
         pass
+
+def save_map():
+    global track_map
+    global should_map
+    if should_map:
+        track_map.to_file(f"map-{datetime.now().minute}.json")
 
 def write_callback():
     global should_write
@@ -322,7 +335,7 @@ def stop_for_mark_callback():
     print(">>", end="")
 
 
-def map_callback(load=False):
+def map_callback(filename=None):
     global should_map
     global track_map
     global encoder_ml
@@ -335,8 +348,8 @@ def map_callback(load=False):
     track_map = TrackMap(
         encoder_mr, encoder_ml, A, B, linear_speed, speed_limit, STATIC_COEFICIENT, AXIS_DISTANCE
     )
-    if load:
-        track_map.from_file(MAP_FNAME)
+    if not filename is None:
+        track_map.from_file(filename)
 
     print("WILL MAP")
     print(">>", end="")
@@ -557,6 +570,7 @@ def get_contour_data(mask, out, previous_pos):
 
 def check_stop_mark(mask, out):
 
+    global mark_contour_vertices
     global should_stop_for_mark
     global saw_right_mark
     if should_stop_for_mark:
@@ -570,7 +584,7 @@ def check_stop_mark(mask, out):
             contour_vertices = len(cv2.approxPolyDP(mark, 1.5, True))
             # print("vertices: ", contour_vertices):
 
-            if (min_area < M["m00"] < min_area_track) and contour_vertices < MARK_CONTOUR_VERTICES:
+            if (min_area < M["m00"] < min_area_track) and contour_vertices < mark_contour_vertices:
                 # plot the area in purple
                 cv2.drawContours(out, mark, -1, (255, 0, 255), 2)
                 cv2.putText(
@@ -585,21 +599,64 @@ def check_stop_mark(mask, out):
                 print("SAW STOP MARK")
                 saw_right_mark = True
 
-                # if (line["x"] < (width//2)):
-                #     saw_left_mark = True
-                #     # if contour is a right mark append to map
-                #     if should_map and left_mark_buffer_count == 0:
-                #         track_map.append_map()
-                #         print("Saw left mark")
+def check_curve_mark(mask, out):
+    
+    global min_area
+    global min_area_track
 
-                #     # saw a right mark recently
-                #     if left_mark_buffer_count < 5:
-                #         left_mark_buffer_count += 1
-                
-                # else:
+    global should_map
+    global should_use_map
 
+    global mark_contour_vertices
+    global left_mark_buffer_count
+    
+    global track_map 
+
+    left_marks, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    saw_left_mark = False
+    for mark in left_marks: 
+        
+        M = cv2.moments(mark)
+        # Search more about Image Moments on Wikipedia :)
+
+        contour_vertices = len(cv2.approxPolyDP(mark, 1.5, True))
+        # print("vertices: ", contour_vertices):
+
+        if (min_area < M["m00"] < min_area_track) and contour_vertices < mark_contour_vertices:
+            # plot the area in purple
+            cv2.drawContours(out, mark, -1, (0, 255, 255), 2)
+            cv2.putText(
+                out,
+                f"{contour_vertices}-{M['m00']}",
+                (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])),
+                cv2.FONT_HERSHEY_PLAIN,
+                2 / (RESIZE_FACTOR / 3),
+                (0, 0, 255),
+                1,
+            )
+
+            # if contour is a right mark append to map
+            if should_map and left_mark_buffer_count == 0:
+                track_map.append_map()
+                print("SAW LEFT MARK")
+                saw_left_mark = True
+
+            if should_use_map and left_mark_buffer_count == 0:
+                track_map.mark_count += 1
+                print("SAW LEFT MARK")
+                saw_left_mark = True
+
+            # saw a right mark recently
+            if left_mark_buffer_count < 5:
+                left_mark_buffer_count = 5
+
+    if not saw_left_mark and left_mark_buffer_count > 0:
+        left_mark_buffer_count -= 1    
 
 zeros = None
+started_check_stop_mark = False
+recently_ignored_crossing = False
 
 def process_frame(image_input, last_res_v):
     """
@@ -682,15 +739,20 @@ def process_frame(image_input, last_res_v):
     ch, cw, _ = crop.shape
 
     global should_stop_for_mark
+    global started_check_stop_mark
     global zeros
+    global track_size
     if zeros is None:
         # zeros = np.zeros([ch, 2*cw//3, 3], dtype=np.uint8)
         zeros = np.zeros_like(crop[:, 2*cw//3:], dtype=np.uint8)
 
-    if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*0):
+    if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*track_size):
         # mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
         mark_mask = mask[:, 2*cw//3:]
         check_stop_mark(mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
+        if not started_check_stop_mark:
+            print("IS CHECKING STOP MARK")
+            started_check_stop_mark = True
 
     # get the centroid of the biggest contour in the picture,
     # and plot its detail on th e cropped part of the output image
@@ -698,7 +760,16 @@ def process_frame(image_input, last_res_v):
         mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop], error + cx
     )
     # also get the side in which the track mark "is"
-
+    
+    global recently_ignored_crossing
+    curve_mark_mask = mask[:, :1*cw//3]
+    if should_map or should_use_map:
+        if not line.get("is_crossing"):
+            check_curve_mark(curve_mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
+            recently_ignored_crossing = False
+        elif not recently_ignored_crossing:
+            print("IGNORED CROSSING")
+            recently_ignored_crossing = True 
 
     x = None
 
@@ -730,7 +801,10 @@ def process_frame(image_input, last_res_v):
         if abs(error) > CURVE_ERROR_THRH:
             linear = linear_speed_on_curve
         else:
-            linear = linear_speed
+            if total_distance > 2000:
+                linear = speed_limit
+            else:
+                linear = linear_speed
 
         # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
         #     linear = LINEAR_SPEED_ON_LOSS
@@ -743,17 +817,11 @@ def process_frame(image_input, last_res_v):
         #     (image_ts - last_image_ts) / 1e7
         # )
 
-        # print((image_ts - last_image_ts)/1e7)
-        # print(P, D)
         angular = P + D
 
     else:
-        # if new_error:
         debug_str2 = f"last={error}| new={new_error}"
-        # print("LOST", end=". ")
         lost = True
-        # There is no line in the image.
-        # Turn on the spot to find it again.
         if just_seen_line:
             just_seen_line = False
             error *= LOSS_FACTOR
@@ -781,12 +849,11 @@ def process_frame(image_input, last_res_v):
     if not should_stop and should_move and should_stop_for_mark:
         if saw_right_mark:
             should_stop = True
-            runtime = datetime.now() + timedelta(milliseconds=50)
+            runtime = datetime.now() + timedelta(milliseconds=300)
             print(f"READ STOP MARK")
     
     # Determine the speed to turn and get the line in the center of the camera.
     # angular = float(error) * -KP
-
     # resulting speed
     res_v = {
         "left": int(linear - angular),  # left motor resulting speed
@@ -881,12 +948,20 @@ def process_frame(image_input, last_res_v):
         else:
             mark_mask = cv2.cvtColor(mark_mask, cv2.COLOR_GRAY2BGR)
 
+        curve_mark_mask = cv2.cvtColor(curve_mark_mask, cv2.COLOR_GRAY2BGR)
+
         height_diff = out_mask.shape[0] - mark_mask.shape[0]
         top_padding = abs(height_diff) // 2
         bottom_padding = abs(height_diff) - top_padding
         # Use cv2.copyMakeBorder to add the padding to 'mark_mask'
-        mark_mask_padded = cv2.copyMakeBorder(mark_mask, top_padding, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=0)
-        output_frame = np.hstack((mark_mask_padded, output, out_mask))
+        mark_mask_padded = cv2.copyMakeBorder(mark_mask, top_padding, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=(255,0,0))
+
+        height_diff = out_mask.shape[0] - curve_mark_mask.shape[0]
+        top_padding = abs(height_diff) // 2
+        bottom_padding = abs(height_diff) - top_padding
+        # Use cv2.copyMakeBorder to add the padding to 'mark_mask'
+        curve_mark_mask_padded = cv2.copyMakeBorder(curve_mark_mask, top_padding, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=(0,255,0))
+        output_frame = np.hstack((curve_mark_mask_padded, mark_mask_padded, output, out_mask))
 
         global shape
         out_h, out_w, _ = output_frame.shape
@@ -981,7 +1056,7 @@ def main():
         map_callback()
 
     if args.usemap != None:
-        map_callback(load=True)
+        map_callback(args.usemap)
     ##############################
 
     if args.file != None:
@@ -1045,7 +1120,11 @@ finally:
     del motor_left
     end_write()
     end_record()
+    save_map()
     print("Ended successfully.")
     GPIO.remove_event_detect(encoder_a_ml)
     GPIO.remove_event_detect(encoder_a_mr)
     GPIO.cleanup()
+
+
+

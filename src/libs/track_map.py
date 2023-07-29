@@ -40,17 +40,21 @@ class TrackMap():
         self.encoder_left = encoder_left
 
         self.track_map=[]
+        self.mark_count = 0
 
     def curve_radius(self):
         Sr = self.encoder_right.distance - self.right_total_distance
         Sl = self.encoder_left.distance - self.left_total_distance
 
-        if abs(Sr - Sl) <= 1e-9:
+        # if abs(Sr - Sl) <= 1e-9:
+        if abs(Sr - Sl) <= 4:
             return inf
         
         return (self.axis_distance/2)*((Sr + Sl)/abs(Sr - Sl))
 
     def theoretical_max_speed(self, radius):
+        if radius <= 0:
+            return 0
         return sqrt(self.static_coeficient * radius * self.GRAVITY)
 
     def meters2PWM(self, speed):
@@ -77,11 +81,17 @@ class TrackMap():
         
         self.right_total_distance = self.encoder_right.distance
         self.left_total_distance = self.encoder_left.distance
-        
+
+        self.mark_count += 1
+
+    def get_region(self):
+        return self.track_map[self.mark_count]
+
     def to_json(self):
         map_dict = self.__dict__
         map_dict["encoder_right"] = self.encoder_right.to_json()
         map_dict["encoder_left"] = self.encoder_left.to_json()
+        map_dict["mark_count"] = self.mark_count
         map_dict["track_map"] = [region.to_json() for region in self.track_map]
         return map_dict
 
