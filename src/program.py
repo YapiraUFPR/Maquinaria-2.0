@@ -126,6 +126,8 @@ right_mark_count = 0
 frame_count = 0
 image_ts = 0
 last_image_ts = 0
+last_fps_count = 0
+
 
 ## User-defined parameters: (Update these values as necessary)
 
@@ -813,6 +815,9 @@ def process_frame(image_input, last_res_v):
                 linear = speed_limit
             else:
                 linear = linear_speed
+        
+        if last_fps_count < 70:
+            linear = linear_speed_on_curve
 
         # if after_loss_count < FRAMES_TO_USE_LINEAR_SPEED_ON_LOSS:
         #     linear = LINEAR_SPEED_ON_LOSS
@@ -1098,9 +1103,11 @@ def main():
             last_image_ts = image_ts
             image_ts = time.time_ns()
 
+            global last_fps_count
             fps_count += 1
             if time.time() - ts >= 1:
                 print(f"FPS: {fps_count}")
+                last_fps_count = fps_count
                 fps_count = 0
                 ts = time.time()
 
