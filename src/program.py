@@ -194,7 +194,10 @@ RECORD_PERIOD = 3
 OUTPUT_FOLDER = "../outputs"
 
 track_size = 2812
-STOP_DISTANCE_FACTOR = 0.82
+# STOP_DISTANCE_FACTOR = 0.82
+STOP_DISTANCE_FACTOR = 0
+
+use_adaptative = True
 
 ############################ CALLBACKS ############################
 ###################################################################
@@ -220,6 +223,7 @@ def load_file_callback(filename):
     global min_area_track
 
     global track_size
+    global use_adaptative
 
 
     with open(filename, "r") as f:
@@ -243,6 +247,7 @@ def load_file_callback(filename):
         min_area_track = json_dict["MIN_AREA_TRACK"]
         min_area = json_dict["MIN_AREA"]
         track_size = json_dict["TRACK_SIZE"]
+        use_adaptative = json_dict["USE_ADAPTATIVE"]
 
 def show_callback():
     global should_show
@@ -748,6 +753,7 @@ def process_frame(image_input, last_res_v):
     mark_mask = None
     ch, cw, _ = crop.shape
 
+    global use_adaptative 
     global should_stop_for_mark
     global started_check_stop_mark
     global zeros
@@ -758,8 +764,10 @@ def process_frame(image_input, last_res_v):
 
     if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*track_size):
         # mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
-        # mark_mask = mask[:, 2*cw//3:]
-        mark_mask = cv2.threshold(red[:, 2*cw//3:], lower_bgr_values[2], upper_bgr_values[2], cv2.THRESH_BINARY)
+        if use_adaptative:
+            mark_mask = mask[:, 2*cw//3:]
+        else:
+            _, mark_mask = cv2.threshold(red[:, 2*cw//3:], lower_bgr_values[2], upper_bgr_values[2], cv2.THRESH_BINARY)
         check_stop_mark(mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
         if not started_check_stop_mark:
             print("IS CHECKING STOP MARK")

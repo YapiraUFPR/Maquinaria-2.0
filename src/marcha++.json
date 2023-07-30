@@ -12,8 +12,9 @@
     "MARCHA_DISTANCE": 2000,
     "KP": 0.45, 
     "KD": 0.9, 
-    "lower_bgr_values": [25, 25, 25], 
+    "lower_bgr_values": [25, 25, 40], 
     "upper_bgr_values": [240, 240, 255],
+    "USE_ADAPTATIVE" : false,
     "TRACK_SIZE" : 2812
 }
 
