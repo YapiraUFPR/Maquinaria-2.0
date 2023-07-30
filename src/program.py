@@ -153,6 +153,7 @@ linear_speed_on_curve = 30.0
 linear_speed_on_loss = 30.0
 speed_limit = 85.0
 curve_limit = 50.0
+marcha_distance = 2000
 
 left_mark_buffer_count = 0
 
@@ -207,6 +208,7 @@ def load_file_callback(filename):
     global linear_speed_on_loss
     global speed_limit
     global curve_limit
+    global marcha_distance
 
 
     global lower_bgr_values
@@ -233,6 +235,7 @@ def load_file_callback(filename):
         linear_speed_on_loss = json_dict["LINEAR_SPEED_ON_LOSS"]
         speed_limit = json_dict["SPEED_LIMIT"]
         curve_limit = json_dict["CURVE_LIMIT"]
+        marcha_distance = json_dict["MARCHA_DISTANCE"]
         lower_bgr_values = np.array(json_dict["lower_bgr_values"])
         upper_bgr_values = np.array(json_dict["upper_bgr_values"])
         max_contour_vertices = json_dict["MAX_CONTOUR_VERTICES"]
@@ -755,7 +758,8 @@ def process_frame(image_input, last_res_v):
 
     if should_stop_for_mark and (((encoder_ml.distance + encoder_mr.distance) / 2) >= STOP_DISTANCE_FACTOR*track_size):
         # mark_mask = cv2.inRange(crop[:, 2*cw//3:], lower_bgr_values, upper_bgr_values)
-        mark_mask = mask[:, 2*cw//3:]
+        # mark_mask = mask[:, 2*cw//3:]
+        mark_mask = cv2.threshold(red[:, 2*cw//3:], lower_bgr_values[2], upper_bgr_values[2], cv2.THRESH_BINARY)
         check_stop_mark(mark_mask, output[crop_h_start:crop_h_stop, crop_w_start:crop_w_stop])
         if not started_check_stop_mark:
             print("IS CHECKING STOP MARK")
@@ -806,12 +810,12 @@ def process_frame(image_input, last_res_v):
         #     linear = track_map.track_map[mark_count].pwm_speed
 
         if abs(error) > CURVE_ERROR_THRH:
-            if total_distance > 2000:
+            if total_distance > marcha_distance:
                 linear = curve_limit
             else:
                 linear = linear_speed_on_curve
         else:
-            if total_distance > 2000:
+            if total_distance > marcha_distance:
                 linear = speed_limit
             else:
                 linear = linear_speed

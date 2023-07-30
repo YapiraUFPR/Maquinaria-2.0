@@ -9,6 +9,7 @@
     "LINEAR_SPEED_ON_LOSS": 30.0, 
     "SPEED_LIMIT" : 75,
     "CURVE_LIMIT" : 45,
+    "MARCHA_DISTANCE": 2000,
     "KP": 0.45, 
     "KD": 0.9, 
     "lower_bgr_values": [25, 25, 25], 
